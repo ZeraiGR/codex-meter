@@ -11,17 +11,17 @@ struct RunListRow:View {
                 Text(run.projectName).lineLimit(1)
                 Spacer()
                 Text(run.started.formatted(date:.omitted,time:.shortened)).monospacedDigit()
-            }.font(.caption).foregroundStyle(.secondary)
+            }.font(.caption).foregroundStyle(.primary)
             Text(run.title).font(.callout.weight(.medium)).foregroundStyle(.primary).lineLimit(3).fixedSize(horizontal:false,vertical:true)
-            if let preview=run.preview,!preview.isEmpty {Text(preview).font(.caption).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal:false,vertical:true)}
+            if let preview=run.preview,!preview.isEmpty {Text(preview).font(.caption).foregroundStyle(.primary).lineLimit(2).fixedSize(horizontal:false,vertical:true)}
             HStack(spacing:5) {
                 Text(Format.tokens(run.tokens.total)+" токенов")
                 Text("·")
                 Text(run.ended.map{Format.time($0.timeIntervalSince(run.started))} ?? "В работе")
                 Spacer()
-                if taskTitle != nil {Image(systemName:"checkmark.circle.fill").foregroundStyle(.mint)}
-            }.font(.caption2).foregroundStyle(.secondary)
-            if let taskTitle {Text("Задача: "+taskTitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)}
+                if taskTitle != nil {Image(systemName:"checkmark.circle.fill").foregroundStyle(.primary)}
+            }.font(.caption2).foregroundStyle(.primary)
+            if let taskTitle {Text("Задача: "+taskTitle).font(.caption2).foregroundStyle(.primary).lineLimit(1)}
         }.frame(maxWidth:.infinity,alignment:.leading).padding(.vertical,7).textSelection(.disabled)
     }
 }
@@ -55,9 +55,9 @@ struct RunDetailView:View {
                     Label(run.projectName,systemImage:"folder")
                     Text(Format.tokens(run.tokens.total)+" токенов")
                     Text(run.model.isEmpty ? "Модель не указана":run.model)
-                }.font(.caption).foregroundStyle(.secondary)
-                if let taskTitle {Label(taskTitle,systemImage:"checkmark.circle.fill").font(.caption).foregroundStyle(.mint)}
-                else {Text("Пока без задачи. Прочитайте переписку и выберите, к какому результату относится этот запуск.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)}
+                }.font(.caption).foregroundStyle(MeterTheme.secondary)
+                if let taskTitle {Label(taskTitle,systemImage:"checkmark.circle.fill").font(.caption).foregroundStyle(MeterTheme.accent)}
+                else {Text("Пока без задачи. Прочитайте переписку и выберите, к какому результату относится этот запуск.").font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)}
                 HStack {
                     Picker("Показать",selection:$entireThread){Text("Этот запуск").tag(false);Text("Вся переписка").tag(true)}.pickerStyle(.segmented).labelsHidden().frame(maxWidth:290)
                     Spacer()
@@ -82,7 +82,7 @@ struct RunDetailView:View {
                         LazyVStack(alignment:.leading,spacing:16) {
                             ForEach(visibleTurns) {turn in
                                 if entireThread {
-                                    HStack{Text(turn.date.formatted(date:.abbreviated,time:.shortened));if turn.id==run.id {Text("Выбранный запуск").foregroundStyle(.mint)};Spacer()}.font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.top,8).id(turn.id)
+                                    HStack{Text(turn.date.formatted(date:.abbreviated,time:.shortened));if turn.id==run.id {Text("Выбранный запуск").foregroundStyle(MeterTheme.accent)};Spacer()}.font(.caption.weight(.medium)).foregroundStyle(MeterTheme.secondary).padding(.top,8).id(turn.id)
                                 }
                                 ForEach(turn.messages) {message in MessageCard(message:message)}
                             }
@@ -93,7 +93,7 @@ struct RunDetailView:View {
             }
             Divider()
             HStack {
-                Text("Сообщения читаются из локального журнала Codex").font(.caption2).foregroundStyle(.secondary)
+                Text("Сообщения читаются из локального журнала Codex").font(.caption2).foregroundStyle(MeterTheme.secondary)
                 Spacer()
                 Button("Копировать переписку") {
                     Clipboard.copy(visibleTurns.flatMap(\.messages).map{($0.role=="user" ? "Вы":"Codex")+"\n"+$0.text}.joined(separator:"\n\n"))
@@ -121,13 +121,13 @@ private struct MessageCard:View {
         VStack(alignment:.leading,spacing:10) {
             HStack {
                 Label(message.role=="user" ? "Вы":"Codex",systemImage:message.role=="user" ? "person.crop.circle":"sparkle").font(.callout.weight(.semibold))
-                if message.phase=="commentary" {Text("По ходу работы").font(.caption).foregroundStyle(.secondary)}
+                if message.phase=="commentary" {Text("По ходу работы").font(.caption).foregroundStyle(MeterTheme.secondary)}
                 Spacer()
-                Text(message.date.formatted(date:.omitted,time:.shortened)).font(.caption).foregroundStyle(.secondary)
+                Text(message.date.formatted(date:.omitted,time:.shortened)).font(.caption).foregroundStyle(MeterTheme.secondary)
                 Button{Clipboard.copy(message.text)}label:{Image(systemName:"doc.on.doc")}.buttonStyle(.plain).help("Скопировать сообщение")
             }
             MessageText(text:message.text)
-        }.padding(15).background(message.role=="user" ? Color.mint.opacity(0.08):Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:12))
+        }.padding(15).background(message.role=="user" ? MeterTheme.accent.opacity(0.08):Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:12))
     }
 }
 
@@ -164,7 +164,7 @@ struct RunHeading:View {
                 .frame(maxWidth:.infinity,alignment:.leading)
                 .accessibilityIdentifier("run-heading-title")
             HStack(alignment:.center,spacing:8) {
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                Text(subtitle).font(.caption).foregroundStyle(MeterTheme.secondary)
                     .fixedSize(horizontal:false,vertical:true)
                     .accessibilityIdentifier("run-heading-subtitle")
                 Spacer(minLength:0)

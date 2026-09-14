@@ -74,7 +74,7 @@ struct ErrorBanner: View {
                 if parts.count > 1 {
                     DisclosureGroup("Подробности") {
                         Text(parts.dropFirst().joined(separator: "\n\n"))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MeterTheme.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -85,6 +85,6 @@ struct ErrorBanner: View {
                 Button(action: dismiss) { Image(systemName: "xmark").frame(width: 22, height: 22) }
                     .buttonStyle(.plain).help("Скрыть ошибку")
             }
-        }.font(.caption).foregroundStyle(.orange)
+        }.font(.caption).foregroundStyle(MeterTheme.warning)
     }
 }

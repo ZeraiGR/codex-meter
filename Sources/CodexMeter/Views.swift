@@ -12,7 +12,7 @@ struct MeterApp:App {
                 Image(systemName:store.snapshot?.fresh()==true ? "gauge.with.dots.needle.50percent":"gauge.with.dots.needle.0percent")
                 Text(store.remaining.map{"\(Int($0))%"} ?? "—").monospacedDigit()
                 if store.snapshot?.fresh() != true {Image(systemName:"clock")}
-                if store.updates.availableVersion != nil {Image(systemName:"arrow.down.circle.fill").foregroundStyle(.mint)}
+                if store.updates.availableVersion != nil {Image(systemName:"arrow.down.circle.fill").foregroundStyle(MeterTheme.accent)}
             }
         }.menuBarExtraStyle(.window)
         Window("Codex Meter",id:"dashboard") {
@@ -23,11 +23,11 @@ struct MeterApp:App {
 
 struct Card<Content:View>:View {
     @ViewBuilder var content:Content
-    var body:some View {VStack(alignment:.leading,spacing:12){content}.padding(16).frame(maxWidth:.infinity,alignment:.leading).background(.quaternary.opacity(0.5),in:RoundedRectangle(cornerRadius:16))}
+    var body:some View {VStack(alignment:.leading,spacing:12){content}.padding(16).frame(maxWidth:.infinity,alignment:.leading).background(MeterTheme.surface,in:RoundedRectangle(cornerRadius:16))}
 }
 struct Metric:View {
     var label:String;var value:String;var tint:Color = .primary
-    var body:some View {VStack(alignment:.leading,spacing:5){Text(label).font(.caption).foregroundStyle(.secondary);Text(value).font(.title3.weight(.semibold)).foregroundStyle(tint).monospacedDigit()}.frame(maxWidth:.infinity,alignment:.leading)}
+    var body:some View {VStack(alignment:.leading,spacing:5){Text(label).font(.caption).foregroundStyle(MeterTheme.secondary);Text(value).font(.title3.weight(.semibold)).foregroundStyle(tint).monospacedDigit()}.frame(maxWidth:.infinity,alignment:.leading)}
 }
 
 struct PopoverView:View {
@@ -36,11 +36,11 @@ struct PopoverView:View {
     var body:some View {
         VStack(spacing:0) {
             HStack {
-                Image(systemName:"circle.hexagongrid.fill").foregroundStyle(.mint)
+                Image(systemName:"circle.hexagongrid.fill").foregroundStyle(MeterTheme.accent)
                 Text("Codex Meter").font(.headline)
                 Spacer()
                 if store.updating {ProgressView().controlSize(.small)}
-                Button {store.refresh()} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).help("Обновить")
+                Button {store.refresh()} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).disabled(store.updating).help("Обновить")
             }.padding(18)
             Divider()
             ScrollView {
@@ -50,12 +50,12 @@ struct PopoverView:View {
                             ZStack {
                                 Circle().stroke(.quaternary,lineWidth:9)
                                 Circle().trim(from:0,to:(store.remaining ?? 0)/100).stroke(Format.color(store.remaining),style:StrokeStyle(lineWidth:9,lineCap:.round)).rotationEffect(.degrees(-90))
-                                VStack(spacing:1){Text(store.remaining.map{"\(Int($0))%"} ?? "—").font(.system(size:28,weight:.semibold,design:.rounded)).monospacedDigit();Text("осталось").font(.caption).foregroundStyle(.secondary)}
+                                VStack(spacing:1){Text(store.remaining.map{"\(Int($0))%"} ?? "—").font(.system(size:28,weight:.semibold,design:.rounded)).monospacedDigit();Text("осталось").font(.caption).foregroundStyle(MeterTheme.secondary)}
                             }.frame(width:108,height:108).padding(5)
                             VStack(alignment:.leading,spacing:8) {
                                 Text("Запас для работы").font(.title3.weight(.semibold))
-                                Text(snapshot.fresh() ? "Квота подписки Codex":"Данные требуют обновления").font(.callout).foregroundStyle(.secondary)
-                                Label(snapshot.fetchedAt.formatted(date:.omitted,time:.shortened),systemImage:snapshot.fresh() ? "checkmark.circle":"clock").font(.caption).foregroundStyle(snapshot.fresh() ? Color.secondary:Color.orange)
+                                Text(snapshot.fresh() ? "Квота подписки Codex":"Данные требуют обновления").font(.callout).foregroundStyle(MeterTheme.secondary)
+                                Label(snapshot.fetchedAt.formatted(date:.omitted,time:.shortened),systemImage:snapshot.fresh() ? "checkmark.circle":"clock").font(.caption).foregroundStyle(snapshot.fresh() ? MeterTheme.secondary:MeterTheme.warning)
                             }
                         }.padding(.vertical,5)
                         ForEach(Array(main.windows.enumerated()),id:\.offset) { _,window in QuotaRow(window:window) }
@@ -64,7 +64,7 @@ struct PopoverView:View {
                                 ForEach(snapshot.buckets.filter{$0.id != "codex"}) { bucket in
                                     VStack(alignment:.leading,spacing:8){Text(bucket.title).font(.caption.weight(.semibold));ForEach(Array(bucket.windows.enumerated()),id:\.offset){_,w in QuotaRow(window:w)}}.padding(.top,8)
                                 }
-                            }.font(.caption).foregroundStyle(.secondary)
+                            }.font(.caption).foregroundStyle(MeterTheme.secondary)
                         }
                         MoneyCard(compact:true)
                     } else {
@@ -73,26 +73,26 @@ struct PopoverView:View {
                     if let error=store.error {ErrorBanner(message:error)}
                     if let active=store.tasks.first(where:{$0.task.status=="active"}) {
                         Card {
-                            Label("В работе",systemImage:"bolt.fill").font(.caption).foregroundStyle(.mint)
+                            Label("В работе",systemImage:"bolt.fill").font(.caption).foregroundStyle(MeterTheme.accent)
                             Text(active.task.title).font(.callout.weight(.medium)).lineLimit(2)
-                            HStack{Text(Format.tokens(active.tokens.total)+" токенов");Spacer();Text(Format.time(active.activeSeconds))}.font(.caption).foregroundStyle(.secondary)
+                            HStack{Text(Format.tokens(active.tokens.total)+" токенов");Spacer();Text(Format.time(active.activeSeconds))}.font(.caption).foregroundStyle(MeterTheme.secondary)
                         }
                     }
                 }.padding(18)
             }.frame(maxHeight:560)
             if let version=store.updates.availableVersion {
                 Button {store.updates.check()} label:{Label("Доступна версия \(version)",systemImage:"arrow.down.circle.fill").frame(maxWidth:.infinity,alignment:.leading)}
-                    .buttonStyle(.plain).foregroundStyle(.mint).padding(.horizontal,18).padding(.vertical,8)
+                    .buttonStyle(.plain).foregroundStyle(MeterTheme.accent).padding(.horizontal,18).padding(.vertical,8)
             }
             Divider()
             HStack {
-                Button("Статистика и задачи") {store.tab="tasks";WindowNavigation.shared.showDashboard {openWindow(id:"dashboard")}}.buttonStyle(.borderedProminent).tint(.mint)
+                Button("Статистика и задачи") {store.tab="tasks";WindowNavigation.shared.showDashboard {openWindow(id:"dashboard")}}.buttonStyle(.borderedProminent)
                 Spacer()
                 Button {store.tab="settings";WindowNavigation.shared.showDashboard {openWindow(id:"dashboard")}} label:{Image(systemName:"gearshape").frame(width:28,height:28)}.buttonStyle(.plain).help("Настройки").accessibilityLabel("Настройки")
                 Menu {Button("Проверить обновления…",action:store.updates.check).disabled(!store.updates.canCheck);Divider();Button("Завершить Codex Meter"){NSApplication.shared.terminate(nil)}} label:{Image(systemName:"ellipsis")}.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width:28,height:28).help("Другие действия").accessibilityLabel("Другие действия")
             }.padding(14)
         }.frame(width:420,height:store.snapshot==nil ? 440:(store.tasks.contains{$0.task.status=="active"} ? 660:550))
-        .textSelection(.enabled).background(WindowReader(role:.popover))
+        .textSelection(.enabled).background(MeterTheme.background).actionProgress().background(WindowReader(role:.popover))
     }
 }
 
@@ -102,15 +102,15 @@ struct MoneyCard:View {
     var compact=false
     var body:some View {
         Card {
-            HStack{Label("Ресурс в рублях",systemImage:"rublesign.circle").font(.callout.weight(.medium));Spacer();Text("оценка").font(.caption2).foregroundStyle(.secondary)}
+            HStack{Label("Ресурс в рублях",systemImage:"rublesign.circle").font(.callout.weight(.medium));Spacer();Text("оценка").font(.caption2).foregroundStyle(MeterTheme.secondary)}
             if let money=store.money,let bill=store.currentPayment {
-                HStack(spacing:12){Metric(label:"Доступно сейчас",value:Format.rub(money.current),tint:.mint);Metric(label:"Будущие восстановления",value:Format.rub(money.future))}
+                HStack(spacing:12){Metric(label:"Доступно сейчас",value:Format.rub(money.current),tint:MeterTheme.accent);Metric(label:"Будущие восстановления",value:Format.rub(money.future))}
                 if !compact {Text("Всего ещё можно использовать: \(Format.rub(money.current+money.future)) из оплаченных \(Format.rub(bill.amount)).").font(.callout)}
-                Text("Доля оплаченной квоты. Будущие окна рассчитаны при сохранении текущих условий; это не денежный баланс.").font(.caption2).foregroundStyle(.secondary)
+                Text("Доля оплаченной квоты. Будущие окна рассчитаны при сохранении текущих условий; это не денежный баланс.").font(.caption2).foregroundStyle(MeterTheme.secondary)
             } else if store.currentPayment==nil {
-                Text("Внесите фактический платёж за подписку, чтобы видеть стоимость доступной квоты и задач.").font(.caption).foregroundStyle(.secondary)
+                Text("Внесите фактический платёж за подписку, чтобы видеть стоимость доступной квоты и задач.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 Button("Добавить платёж") {store.tab="payments";WindowNavigation.shared.showDashboard {openWindow(id:"dashboard")}}
-            } else {Text("Расчёт появится после обновления квоты.").font(.caption).foregroundStyle(.secondary)}
+            } else {Text("Расчёт появится после обновления квоты.").font(.caption).foregroundStyle(MeterTheme.secondary)}
         }
     }
 }
@@ -120,14 +120,17 @@ struct DashboardView:View {
     var body:some View {
         VStack(spacing:0) {
             HStack(alignment:.center) {
-                VStack(alignment:.leading,spacing:4){Text("Codex Meter").font(.largeTitle.weight(.semibold));Text("Понимай расход. Планируй следующие задачи.").foregroundStyle(.secondary)}
+                VStack(alignment:.leading,spacing:4){Text("Codex Meter").font(.largeTitle.weight(.semibold));Text("Понимай расход. Планируй следующие задачи.").foregroundStyle(MeterTheme.secondary)}
                 Spacer()
                 if let remaining=store.remaining {Text("\(Int(remaining))% осталось").font(.headline).foregroundStyle(Format.color(remaining)).padding(10).background(.quaternary,in:Capsule())}
-                Button{store.refresh();store.reloadLocal()}label:{Image(systemName:"arrow.clockwise")}.disabled(store.updating)
+                HStack(spacing:8) {
+                    if store.updating {ProgressView().controlSize(.small).help("Обновляем квоту…")}
+                    Button{store.refresh();store.reloadLocal()}label:{Image(systemName:"arrow.clockwise")}.disabled(store.updating).help("Обновить данные")
+                }
             }.padding(24)
             Picker("Раздел",selection:$store.tab){Text("Задачи").tag("tasks");Text("История").tag("history");Text("Платежи").tag("payments");Text("Настройки").tag("settings")}.pickerStyle(.segmented).labelsHidden().padding(.horizontal,24).padding(.bottom,16)
             Divider()
-            if let error=store.error {ErrorBanner(message:error,dismiss:{store.error=nil}).padding(10).background(.orange.opacity(0.07))}
+            if let error=store.error {ErrorBanner(message:error,dismiss:{store.error=nil}).padding(10).background(MeterTheme.warning.opacity(0.07))}
             Group {
                 switch store.tab {
                 case "history":HistoryView()
@@ -137,7 +140,7 @@ struct DashboardView:View {
                 }
             }.frame(maxWidth:.infinity,maxHeight:.infinity)
         }.frame(minWidth:840,minHeight:620)
-        .textSelection(.enabled).background(WindowReader(role:.dashboard))
+        .textSelection(.enabled).background(MeterTheme.background).actionProgress().background(WindowReader(role:.dashboard))
     }
 }
 
@@ -197,8 +200,8 @@ struct TasksView:View {
                         else if !filter.isEmpty {Text("Поиск по запросам и ответам")}
                         Spacer()
                         if !filter.isEmpty {Button {searchRevision += 1} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).help("Обновить поиск с учётом новых сообщений").disabled(searching)}
-                    }.font(.caption2).foregroundStyle(.secondary).frame(height:16)
-                    if unavailable>0 && !filter.isEmpty {Text("Часть журналов недоступна; поиск по ним ограничен заголовками.").font(.caption2).foregroundStyle(.secondary)}
+                    }.font(.caption2).foregroundStyle(MeterTheme.secondary).frame(height:16)
+                    if unavailable>0 && !filter.isEmpty {Text("Часть журналов недоступна; поиск по ним ограничен заголовками.").font(.caption2).foregroundStyle(MeterTheme.secondary)}
                     List(selection:$selectedRun) {
                         ForEach(runGroups,id:\.0) {date,runs in
                             Section(date.formatted(date:.abbreviated,time:.omitted)) {
@@ -215,17 +218,17 @@ struct TasksView:View {
                                 Image(systemName:"magnifyingglass").font(.title2)
                                 Text(filter.isEmpty ? "Нет запусков с этими фильтрами":"Ничего не найдено").font(.callout.weight(.medium))
                                 Text("Измените поиск или фильтры выше.").font(.caption)
-                            }.foregroundStyle(.secondary).multilineTextAlignment(.center).padding(12).allowsHitTesting(false)
+                            }.foregroundStyle(MeterTheme.secondary).multilineTextAlignment(.center).padding(12).allowsHitTesting(false)
                         }
                     }
-                    HStack{Text("Найдено: \(filteredRuns.count)");Spacer();if !includeService {Text("Служебные скрыты")}}.font(.caption2).foregroundStyle(.secondary)
+                    HStack{Text("Найдено: \(filteredRuns.count)");Spacer();if !includeService {Text("Служебные скрыты")}}.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 } else {
                     TaskListControls(sort:$taskSort,ascending:$taskAscending,status:$taskStatus,kind:$taskKind)
                     List(selection:$selected) {
                         ForEach(visibleTasks) {summary in
                             VStack(alignment:.leading,spacing:6) {
                                 Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
-                                HStack{Text(summary.task.kind).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.secondary)
+                                HStack{Text(summary.task.kind).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
                                 HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
                             }.padding(.vertical,6).textSelection(.disabled).tag(summary.id)
                         }
@@ -244,9 +247,9 @@ struct TasksView:View {
                         if !taskStatus.isEmpty || !taskKind.isEmpty {
                             Button("Сбросить фильтры") {taskStatus="";taskKind=""}.buttonStyle(.plain)
                         }
-                    }.font(.caption2).foregroundStyle(.secondary)
+                    }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                Text(showUnassigned ? "Выберите запуск, прочитайте переписку и назначьте задачу.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(.secondary)
+                Text(showUnassigned ? "Выберите запуск, прочитайте переписку и назначьте задачу.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {
@@ -261,7 +264,7 @@ struct TasksView:View {
             ScrollView {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
-                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.kind).foregroundStyle(.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.kind).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
                         Card {
                             HStack{Metric(label:"Токены",value:Format.tokens(s.tokens.total));Metric(label:"Время выполнения",value:Format.time(s.activeSeconds))}
                             Divider()
@@ -269,13 +272,13 @@ struct TasksView:View {
                             Divider()
                             TaskCostView(summary:s)
                             if s.weeklyQuota==nil || s.quotaQuality.localizedCaseInsensitiveContains("параллельный") {
-                                Text(s.quotaQuality).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                                Text(s.quotaQuality).font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                             }
                         }
                         Grid(alignment:.leading,horizontalSpacing:25,verticalSpacing:10) {
                             detail("Вход",Format.tokens(s.tokens.input));detail("Из него кэш",Format.tokens(s.tokens.cached));detail("Выход",Format.tokens(s.tokens.output));detail("Из него reasoning",Format.tokens(s.tokens.reasoning));detail("Полное время",Format.time(s.wallSeconds));detail("Модели",s.models.joined(separator:", "));detail("Запусков",String(s.runs.count))
                         }.font(.callout)
-                        Text("Кэш входит во входные токены, reasoning — в выходные. Полное время включает паузы; время выполнения учитывает параллельную работу один раз.").font(.caption).foregroundStyle(.secondary)
+                        Text("Кэш входит во входные токены, reasoning — в выходные. Полное время включает паузы; время выполнения учитывает параллельную работу один раз.").font(.caption).foregroundStyle(MeterTheme.secondary)
                         HStack {
                             Button(s.task.status=="completed" ? "Открыть заново":"Завершить") {var task=s.task;task.status=task.status=="completed" ? "active":"completed";task.finished=task.status=="completed" ? Date():nil;save(task)}
                             if s.task.status != "cancelled" {Button("Отменить задачу"){var task=s.task;task.status="cancelled";task.finished=Date();save(task)}}
@@ -284,7 +287,9 @@ struct TasksView:View {
                             DisclosureGroup("Объединить с другой задачей") {
                                 VStack(alignment:.leading,spacing:10) {
                                     TaskChooser(choices:TaskChoice.sorted(store.tasks,excluding:s.id),selection:$mergeTarget)
-                                    Button("Объединить"){do{try store.merge(s.id,mergeTarget);selected=mergeTarget;mergeTarget=""}catch{store.error=error.localizedDescription}}.disabled(mergeTarget.isEmpty)
+                                    Button("Объединить"){let target=mergeTarget;store.merge(s.id,target) {result in
+                                        switch result {case .success:selected=target;mergeTarget="";case .failure(let error):store.error=error.localizedDescription}
+                                    }}.disabled(mergeTarget.isEmpty)
                                 }.padding(.top,8)
                             }.font(.caption)
                         }
@@ -319,11 +324,11 @@ struct TasksView:View {
                 try Task.checkCancellation();searchMatches=result.matches;unavailable=result.unavailable;searching=false
             } catch is CancellationError {} catch {searching=false}
         }
-        .sheet(item:$editing){task in TaskEditor(task:task){save($0)}}
+        .sheet(item:$editing){task in TaskEditor(task:task)}
         .sheet(item:$assigning){run in AssignEditor(run:run)}
     }
-    func detail(_ label:String,_ value:String) -> some View {GridRow{Text(label).foregroundStyle(.secondary);Text(value).textSelection(.enabled)}}
-    func save(_ task:WorkTask){do{try store.saveTask(task)}catch{store.error=error.localizedDescription}}
+    func detail(_ label:String,_ value:String) -> some View {GridRow{Text(label).foregroundStyle(MeterTheme.secondary);Text(value).textSelection(.enabled)}}
+    func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
 }
 
 struct TaskEmptyState:View {
@@ -339,7 +344,7 @@ struct TaskEmptyState:View {
                             .accessibilityHidden(true)
                         Text("Выберите задачу").font(.title2.weight(.semibold))
                         Text("Откройте задачу слева, чтобы увидеть расход токенов, время, стоимость и долю недельной квоты.")
-                            .font(.callout).foregroundStyle(.secondary)
+                            .font(.callout).foregroundStyle(MeterTheme.secondary)
                             .fixedSize(horizontal:false,vertical:true)
                         if !store.integrationInstalled {
                             Button("Подключить учёт к Codex"){store.tab="settings"}
@@ -359,20 +364,21 @@ struct ForecastCard:View {
     var body:some View {
         Card {
             Label("Следующая похожая задача",systemImage:"sparkle.magnifyingglass").font(.headline)
-            Text("История: \(forecast.samples) завершённых задач").font(.caption).foregroundStyle(.secondary)
+            Text("История: \(forecast.samples) завершённых задач").font(.caption).foregroundStyle(MeterTheme.secondary)
             if let tokens=forecast.tokenMedian {HStack{Metric(label:"Обычно токенов",value:Format.tokens(Int64(tokens)));Metric(label:"С запасом",value:forecast.tokenUpper.map{Format.tokens(Int64($0))} ?? "—")}}
             if let seconds=forecast.secondsMedian {Text("Обычно занимает \(Format.time(seconds))").font(.callout)}
-            Text(forecast.explanation).font(.caption).foregroundStyle(forecast.risk=="high" ? .red:forecast.risk=="caution" ? .orange:.secondary)
+            Text(forecast.explanation).font(.caption).foregroundStyle(forecast.risk=="high" ? MeterTheme.danger:forecast.risk=="caution" ? MeterTheme.warning:MeterTheme.secondary)
         }
     }
 }
 
 struct TaskEditor:View {
+    @EnvironmentObject var store:MeterStore
+    @State private var issue:String?
     @Environment(\.dismiss) var dismiss
     @State var task:WorkTask
-    var save:(WorkTask)->Void
     var body:some View {
-        VStack(alignment:.leading,spacing:18){Text("Пользовательская задача").font(.title2);TextField("Конкретный результат: ревью API заказов",text:$task.title);TextField("Тип задачи: code-review",text:$task.kind);Text("Тип объединяет повторяющиеся задачи для прогноза. Конкретное название отличает один запуск от другого.").font(.caption).foregroundStyle(.secondary);HStack{Button("Отмена"){dismiss()};Spacer();Button("Сохранить"){save(task);dismiss()}.buttonStyle(.borderedProminent).disabled(task.title.trimmingCharacters(in:.whitespaces).isEmpty || task.kind.trimmingCharacters(in:.whitespaces).isEmpty)}}.textFieldStyle(.roundedBorder).padding(24).frame(width:480)
+        VStack(alignment:.leading,spacing:18){Text("Пользовательская задача").font(.title2);TextField("Конкретный результат: ревью API заказов",text:$task.title);TextField("Тип задачи: code-review",text:$task.kind);Text("Тип объединяет повторяющиеся задачи для прогноза. Конкретное название отличает один запуск от другого.").font(.caption).foregroundStyle(MeterTheme.secondary);if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger)};HStack{Button("Отмена"){dismiss()};Spacer();Button("Сохранить"){store.saveTask(task) {result in switch result {case .success:dismiss();case .failure(let error):issue=error.localizedDescription}}}.buttonStyle(.borderedProminent).disabled(task.title.trimmingCharacters(in:.whitespaces).isEmpty || task.kind.trimmingCharacters(in:.whitespaces).isEmpty)}}.textFieldStyle(.roundedBorder).padding(24).frame(width:480).background(MeterTheme.background).actionProgress()
     }
 }
 
@@ -391,12 +397,12 @@ struct AssignEditor:View {
         VStack(alignment:.leading,spacing:16) {
             Text("Добавить к задаче").font(.title2)
             Text("Выберите результат, к которому относится этот запрос.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                .font(.callout).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
             VStack(alignment:.leading,spacing:6) {
                 Text("Выбранный запрос").font(.caption.weight(.semibold))
-                Text(run.title).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(run.title).font(.caption).foregroundStyle(MeterTheme.secondary).lineLimit(2)
                     .fixedSize(horizontal:false,vertical:true).textSelection(.disabled)
-            }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(.quaternary,in:RoundedRectangle(cornerRadius:10))
+            }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(MeterTheme.surface,in:RoundedRectangle(cornerRadius:10))
             if !store.tasks.isEmpty {
                 Picker("Куда добавить",selection:$creating) {
                     Text("В существующую задачу").tag(false)
@@ -408,20 +414,20 @@ struct AssignEditor:View {
                     Text("Название задачи").font(.callout.weight(.medium))
                     TextField("Какой результат объединяет эти запросы?",text:$title)
                         .accessibilityIdentifier("assignment-title")
-                    Text("Например: Разработка Codex Meter или Ревью API заказов.").font(.caption).foregroundStyle(.secondary)
+                    Text("Например: Разработка Codex Meter или Ревью API заказов.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
                 VStack(alignment:.leading,spacing:6) {
                     Text("Тип для сравнения похожих задач").font(.callout.weight(.medium))
                     TextField("Произвольная задача",text:$kind)
                     Text("Для прогноза расхода. Можно оставить «Произвольная задача»; для повторяющейся работы указывайте один тип, например code-review.")
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                        .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                 }
             } else {
                 TaskChooser(choices:TaskChoice.sorted(store.tasks),selection:$target,autofocus:true,confirm:addToTask)
                 Text("Запрос дополнит историю, токены и время выбранной задачи. Остальная переписка не переносится.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                    .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
             }
-            if let issue {Text(issue).font(.caption).foregroundStyle(.red)}
+            if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger)}
             HStack {
                 Button("Отмена"){dismiss()}
                 Spacer()
@@ -432,7 +438,7 @@ struct AssignEditor:View {
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("assignment-save")
             }
-        }.textFieldStyle(.roundedBorder).padding(20).frame(width:580)
+        }.textFieldStyle(.roundedBorder).padding(20).frame(width:580).background(MeterTheme.background).actionProgress()
         .onAppear{target=run.taskID ?? "";creating=store.tasks.isEmpty}
     }
     private func addToTask() {
@@ -444,7 +450,10 @@ struct AssignEditor:View {
             guard let existing=store.tasks.first(where:{$0.id==target})?.task else { return }
             task=existing
         }
-        do { try store.assign(run,to:task);dismiss() } catch { issue=error.localizedDescription }
+        issue=nil
+        store.assign(run,to:task) {result in
+            switch result {case .success:dismiss();case .failure(let error):issue=error.localizedDescription}
+        }
     }
 }
 
@@ -465,19 +474,19 @@ struct HistoryView:View {
                 else {
                     Chart(buckets){bucket in
                         if let date=ISO8601DateFormatter().date(from:bucket.startDate+"T12:00:00Z") {
-                            BarMark(x:.value("Дата",date,unit:.day),y:.value("Токены",bucket.tokens)).foregroundStyle(.mint.gradient).cornerRadius(3)
+                            BarMark(x:.value("Дата",date,unit:.day),y:.value("Токены",bucket.tokens)).foregroundStyle(MeterTheme.accent.gradient).cornerRadius(3)
                         }
                     }
                     .chartXAxis{AxisMarks(values:.stride(by:.day,count:days>30 ? 14:(days>7 ? 5:1))){_ in AxisGridLine();AxisValueLabel(format:.dateTime.day().month(.abbreviated))}}
                     .chartYAxis{AxisMarks(values:.automatic(desiredCount:4)){axis in AxisGridLine();AxisValueLabel{if let count=axis.as(Int64.self){Text(Format.tokens(count))}}}}
                     .frame(height:250)
-                    Text("Источник: дневная статистика аккаунта Codex. Показана сумма полученных записей; полнота периода и часовой пояс серверных дней не гарантируются. Локальные данные ниже считаются отдельно.").font(.caption).foregroundStyle(.secondary)
+                    Text("Источник: дневная статистика аккаунта Codex. Показана сумма полученных записей; полнота периода и часовой пояс серверных дней не гарантируются. Локальные данные ниже считаются отдельно.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
                 Card {
                     Text("Сегодня на этом Mac").font(.headline)
                     let count=store.runs.flatMap(\.tokenEvents).filter{Calendar.current.isDateInToday($0.date)}.reduce(Int64(0)){$0+$1.tokens.total}
                     Metric(label:"По локальным событиям · ваш часовой пояс",value:Format.tokens(count)+" токенов")
-                    Text("Включает размеченные и неразмеченные задачи. Не прибавляется к статистике аккаунта, чтобы избежать двойного счёта.").font(.caption).foregroundStyle(.secondary)
+                    Text("Включает размеченные и неразмеченные задачи. Не прибавляется к статистике аккаунта, чтобы избежать двойного счёта.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
                 MoneyCard()
             }.padding(24)
@@ -492,17 +501,17 @@ struct PaymentsView:View {
         ScrollView {
             VStack(alignment:.leading,spacing:20) {
                 HStack{Text("Фактические платежи").font(.title2.weight(.semibold));Spacer();Button("Добавить платёж"){editing=Payment.nextDraft(after:store.payments)}.buttonStyle(.borderedProminent).accessibilityIdentifier("payment-add")}
-                Text("Раз в месяц внесите сумму, которую действительно заплатили в рублях. Дата окончания — начало следующего оплаченного периода.").foregroundStyle(.secondary)
+                Text("Раз в месяц внесите сумму, которую действительно заплатили в рублях. Дата окончания — начало следующего оплаченного периода.").foregroundStyle(MeterTheme.secondary)
                 MoneyCard()
                 ForEach(store.payments){payment in
                     Card {
-                        HStack{Metric(label:"Оплачено",value:Format.rub(payment.amount));VStack(alignment:.leading){Text(payment.start.formatted(date:.abbreviated,time:.omitted)+" → "+payment.end.formatted(date:.abbreviated,time:.omitted));Text(payment.contains(Date()) ? "Текущий период":"История").font(.caption).foregroundStyle(.secondary)};Button("Изменить"){editing=payment}}
+                        HStack{Metric(label:"Оплачено",value:Format.rub(payment.amount));VStack(alignment:.leading){Text(payment.start.formatted(date:.abbreviated,time:.omitted)+" → "+payment.end.formatted(date:.abbreviated,time:.omitted));Text(payment.contains(Date()) ? "Текущий период":"История").font(.caption).foregroundStyle(MeterTheme.secondary)};Button("Изменить"){editing=payment}}
                     }
                 }
                 Card {
                     Text("Как считаются рубли").font(.headline)
                     Text("Цена задачи = платёж × длительность окна квоты / длительность оплаченного периода × использованная доля окна.").font(.callout)
-                    Text("Вся внесённая сумма условно относится к Codex. Неиспользованная квота не увеличивает цену задач. Дополнительные лимиты моделей не суммируются с основной квотой. Смена тарифа или условий требует нового расчёта; приложение не считает процент квоты фиксированным количеством токенов.").font(.caption).foregroundStyle(.secondary)
+                    Text("Вся внесённая сумма условно относится к Codex. Неиспользованная квота не увеличивает цену задач. Дополнительные лимиты моделей не суммируются с основной квотой. Смена тарифа или условий требует нового расчёта; приложение не считает процент квоты фиксированным количеством токенов.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
             }.padding(24)
         }.sheet(item:$editing){PaymentEditor(payment:$0)}
@@ -521,13 +530,14 @@ struct PaymentEditor:View {
             TextField("Фактически уплачено, ₽",text:$amount).textFieldStyle(.roundedBorder).accessibilityIdentifier("payment-amount")
             DatePicker("Начало периода",selection:$payment.start,displayedComponents:.date).accessibilityIdentifier("payment-start")
             DatePicker("Следующий платёж",selection:$payment.end,displayedComponents:.date).accessibilityIdentifier("payment-end")
-            if let error {Text(error).font(.caption).foregroundStyle(.red)}
+            if let error {Text(error).font(.caption).foregroundStyle(MeterTheme.danger)}
             HStack{Button("Отмена"){dismiss()};Spacer();Button("Сохранить"){
                 guard let value=Double(amount.replacingOccurrences(of:" ",with:"").replacingOccurrences(of:",",with:".")) else{error="Введите сумму в рублях";return}
                 payment.amount=value;payment.start=Calendar.current.startOfDay(for:payment.start);payment.end=Calendar.current.startOfDay(for:payment.end)
-                do{try store.savePayment(payment);dismiss()}catch{self.error=error.localizedDescription}
+                self.error=nil
+                store.savePayment(payment) {result in switch result {case .success:dismiss();case .failure(let error):self.error=error.localizedDescription}}
             }.buttonStyle(.borderedProminent).accessibilityIdentifier("payment-save")}
-        }.padding(24).frame(width:440).onAppear{amount=payment.amount>0 ? String(payment.amount):""}
+        }.padding(24).frame(width:440).background(MeterTheme.background).actionProgress().onAppear{amount=payment.amount>0 ? String(payment.amount):""}
     }
 }
 
@@ -543,23 +553,23 @@ struct SettingsView:View {
                     Toggle("Запускать при входе в macOS",isOn:Binding(get:{store.loginEnabled},set:{store.setLogin($0)}))
                     Toggle("Уведомлять о расходе квоты",isOn:Binding(get:{store.notifications},set:{value in Task{await store.enableNotifications(value)}}))
                     if let issue=store.notificationIssue {
-                        Text(issue).font(.caption).foregroundStyle(.orange)
+                        Text(issue).font(.caption).foregroundStyle(MeterTheme.warning)
                         Button("Открыть Системные настройки") {
                             if let url=NSWorkspace.shared.urlForApplication(withBundleIdentifier:"com.apple.systempreferences") {NSWorkspace.shared.open(url)}
                         }
                     }
                     TextField("Пороги расхода, %",text:$store.thresholds).textFieldStyle(.roundedBorder)
-                    Text("50% — мягкое предупреждение. 80%, 90%, 95% — осталось 20%, 10%, 5%. Каждый порог срабатывает один раз за окно.").font(.caption).foregroundStyle(.secondary)
+                    Text("50% — мягкое предупреждение. 80%, 90%, 95% — осталось 20%, 10%, 5%. Каждый порог срабатывает один раз за окно.").font(.caption).foregroundStyle(MeterTheme.secondary)
                     Toggle("Напоминать о большом остатке перед восстановлением",isOn:$store.expiryReminder)
                     HStack{Stepper("За \(store.expiryDays) дн.",value:$store.expiryDays,in:2...6);Spacer();Stepper("Остаток ≥ \(store.expiryRemaining)%",value:$store.expiryRemaining,in:5...95,step:5)}
                     Stepper("За сутки: остаток ≥ \(store.lastDayRemaining)%",value:$store.lastDayRemaining,in:5...95,step:5)
-                    Text("Напоминание использует свежие данные и приходит один раз за недельное окно. После сна проверка выполняется при пробуждении.").font(.caption).foregroundStyle(.secondary)
+                    Text("Напоминание использует свежие данные и приходит один раз за недельное окно. После сна проверка выполняется при пробуждении.").font(.caption).foregroundStyle(MeterTheme.secondary)
                     HStack {
                         Button("Сохранить пороги уведомлений") {
                             do {try store.saveAlertSettings();savedAlertSettings=alertSettingsKey}
                             catch {store.error=error.localizedDescription}
                         }.buttonStyle(.borderedProminent)
-                        if savedAlertSettings==alertSettingsKey {Label("Сохранено",systemImage:"checkmark").font(.caption).foregroundStyle(.mint)}
+                        if savedAlertSettings==alertSettingsKey {Label("Сохранено",systemImage:"checkmark").font(.caption).foregroundStyle(MeterTheme.accent)}
                     }
                 }
                 SoftwareUpdateCard(updater:store.updates)
@@ -567,10 +577,10 @@ struct SettingsView:View {
                 Card {
                     Label(store.integrationInstalled ? "Учёт задач подключён":"Подключение учёта задач",systemImage:"link").font(.headline)
                     Text("Для скиллов Codex автоматически отмечает начало задачи, проверяет прогноз и сохраняет результат. Для остальной работы: «начинаем задачу …», «продолжаем задачу …», «задача завершена».").font(.callout)
-                    Text("Изменения подключения подхватываются в новых сессиях Codex. Начало и завершение смысловой задачи определяет агент; записи можно исправить и объединить в приложении.").font(.caption).foregroundStyle(.secondary)
+                    Text("Изменения подключения подхватываются в новых сессиях Codex. Начало и завершение смысловой задачи определяет агент; записи можно исправить и объединить в приложении.").font(.caption).foregroundStyle(MeterTheme.secondary)
                     Button("Открыть папку данных"){NSWorkspace.shared.open(Database.defaultDirectory)}
                 }
-                Text("Данные хранятся на этом Mac в SQLite. Сохраняются счётчики, короткие названия и связи задач; полная переписка не копируется. Формат журналов Codex может меняться — проверяйте свежесть данных после обновлений.").font(.caption).foregroundStyle(.secondary)
+                Text("Данные хранятся на этом Mac в SQLite. Сохраняются счётчики, короткие названия и связи задач; полная переписка не копируется. Формат журналов Codex может меняться — проверяйте свежесть данных после обновлений.").font(.caption).foregroundStyle(MeterTheme.secondary)
             }.padding(24)
         }
     }

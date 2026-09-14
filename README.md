@@ -29,7 +29,12 @@ time left in the current quota window. No separate API key or paid API account.
 
 <p align="center"><img src="docs/images/menu-bar.png" width="420" alt="Codex Meter macOS menu bar panel with remaining weekly quota, remaining time and subscription resource estimate"></p>
 
+[Dark appearance](docs/images/menu-bar-dark.png).
+
 Screenshots use synthetic example data. The current interface is in Russian.
+The panel uses an opaque background and adapts to macOS light and dark appearance.
+Saving, assigning runs and merging tasks show progress and block repeated actions
+until the displayed statistics are current.
 
 ## Understand the work behind the numbers
 

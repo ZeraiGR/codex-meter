@@ -20,7 +20,7 @@ struct QuotaRowContent:View {
                     Text(window.label).font(.callout.weight(.medium))
                     Spacer()
                     Text("\(Int(window.usedPercent))% потрачено · \(Int(window.remaining))% осталось")
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        .font(.caption).foregroundStyle(MeterTheme.secondary).monospacedDigit()
                         .accessibilityIdentifier("quota-remaining-caption")
                 }
                 QuotaFillBar(remaining:window.remaining,tint:Format.color(window.remaining))
@@ -36,7 +36,7 @@ struct QuotaRowContent:View {
                             .font(.callout.weight(.medium))
                         Spacer()
                         Text("\(passed)% прошло · \(remaining)% осталось")
-                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            .font(.caption).foregroundStyle(MeterTheme.secondary).monospacedDigit()
                             .accessibilityIdentifier("quota-time-caption")
                     }
                     QuotaFillBar(remaining:100-elapsed,tint:.blue)
@@ -46,7 +46,7 @@ struct QuotaRowContent:View {
                 }.help("Обе шкалы показывают остаток. Время считается от начала периода квоты до его восстановления, а не с понедельника.")
             } else if window.resetDate.map({$0<=now}) != true {
                 Text("Прогресс времени недоступен")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(MeterTheme.secondary)
                     .help("Для расчёта нужны длительность текущего периода и дата восстановления квоты.")
             }
             if let reset=window.resetDate,reset.timeIntervalSince1970.isFinite {
@@ -57,7 +57,7 @@ struct QuotaRowContent:View {
                     Spacer()
                     Text(reset.formatted(date:.abbreviated,time:.shortened))
                         .accessibilityIdentifier("quota-reset-date")
-                }.font(.caption2).foregroundStyle(.secondary)
+                }.font(.caption2).foregroundStyle(MeterTheme.secondary)
             }
         }
     }
