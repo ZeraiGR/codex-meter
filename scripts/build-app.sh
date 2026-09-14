@@ -37,11 +37,11 @@ cp "$task_root/Info.plist" "$task_app/Contents/Info.plist"
 cp -R "$task_root/Integration" "$task_app/Contents/Resources/"
 cp .vendor/sparkle-tools/LICENSE "$task_app/Contents/Resources/Sparkle-LICENSE.txt"
 task_iconset="$task_root/dist/AppIcon.iconset"
-task_icon_sdk=()
+task_icon_command=(swift)
 if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then
-    task_icon_sdk=(-sdk /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk)
+    task_icon_command+=(-sdk /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk)
 fi
-swift "${task_icon_sdk[@]}" "$task_root/scripts/generate-icon.swift" "$task_iconset"
+"${task_icon_command[@]}" "$task_root/scripts/generate-icon.swift" "$task_iconset"
 iconutil -c icns "$task_iconset" -o "$task_app/Contents/Resources/AppIcon.icns"
 # Developer ID can be added for notarized releases; ad-hoc builds use EdDSA update authentication.
 codesign --force --sign "${METER_SIGN_IDENTITY:--}" --identifier local.codex-meter.app "$task_app"

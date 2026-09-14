@@ -5,7 +5,7 @@ import UserNotifications
 
 /// Sparkle owns discovery, authenticated download, installation and relaunch.
 /// This adapter adds reminders for an app that normally has no Dock icon.
-@MainActor final class UpdateController:NSObject,ObservableObject,SPUUpdaterDelegate,SPUStandardUserDriverDelegate {
+@MainActor final class UpdateController:NSObject,ObservableObject,@preconcurrency SPUUpdaterDelegate,@preconcurrency SPUStandardUserDriverDelegate {
     static let notificationID="codex-meter.software-update"
     @Published private(set) var availableVersion:String?
     @Published private(set) var canCheck=false
@@ -13,7 +13,6 @@ import UserNotifications
     @Published private(set) var lastChecked:Date?
     @Published private(set) var issue:String?
     private var controller:SPUStandardUpdaterController?
-    private var observations=Set<AnyCancellable>()
     var currentVersion:String {Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "—"}
 
     init(enabled:Bool) {
