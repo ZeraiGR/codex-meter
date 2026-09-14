@@ -56,6 +56,10 @@ import MeterCore
         typeQuery("уникальныйответ")
         check(table.numberOfRows==4 && table.visibleRect.height>=220,"Typing a query finds three full-text matches before any selection")
         // Native selection through mouse events, not an injected SwiftUI state.
+        NSApp.activate(ignoringOtherApps:true)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(table)
+        settle()
         let row=(0..<table.numberOfRows).first{table.rect(ofRow:$0).height>40} ?? 1
         let point=table.convert(NSPoint(x:table.bounds.midX,y:table.rect(ofRow:row).midY),to:nil)
         let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
