@@ -11,11 +11,14 @@ import SwiftUI
         let dashboard = NSWindow(contentRect: rect, styleMask: [.titled, .miniaturizable], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false; dashboard.isReleasedWhenClosed = false
         defer { panel.orderOut(nil); dashboard.orderOut(nil) }
-        func settle() {
-            let deadline = Date().addingTimeInterval(0.3)
+        func settle(until ready: (() -> Bool)? = nil) {
+            let deadline = Date().addingTimeInterval(ready == nil ? 0.3 : 3)
             while Date() < deadline {
-                if let event = NSApp.nextEvent(matching: .any, until: deadline, inMode: .default, dequeue: true) { NSApp.sendEvent(event) }
+                let slice = min(deadline, Date().addingTimeInterval(0.02))
+                RunLoop.main.run(until: slice)
+                if let event = NSApp.nextEvent(matching: .any, until: Date(), inMode: .default, dequeue: true) { NSApp.sendEvent(event) }
                 NSApp.updateWindows()
+                if ready?() == true { return }
             }
         }
         var failures = 0
@@ -32,7 +35,7 @@ import SwiftUI
             // First opening: SwiftUI attaches its window after openWindow returns.
             DispatchQueue.main.async { navigation.attach(dashboard, as: .dashboard) }
         }
-        settle()
+        settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "First navigation closes panel and focuses dashboard")
         panel.makeKeyAndOrderFront(nil)
         navigation.showDashboard {}
