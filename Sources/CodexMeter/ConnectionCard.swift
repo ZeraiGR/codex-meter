@@ -14,19 +14,19 @@ struct ConnectionCard:View {
             TimelineView(.periodic(from:.now,by:60)) { context in
                 VStack(alignment:.leading,spacing:6) {
                     if store.updating {
-                        Label("Обновляем данные…",systemImage:"arrow.clockwise").foregroundStyle(.secondary)
+                        Label("Обновляем данные…",systemImage:"arrow.clockwise").foregroundStyle(MeterTheme.secondary)
                     } else if store.connectionError != nil {
-                        Label("Не удалось обновить данные",systemImage:"exclamationmark.circle").foregroundStyle(.orange)
-                        Text(store.snapshot==nil ? "Данные ещё не получены. Подробности ошибки показаны вверху окна.":"Последние полученные значения сохранены. Обновление повторится автоматически; подробности ошибки показаны вверху окна.").font(.caption).foregroundStyle(.secondary)
+                        Label("Не удалось обновить данные",systemImage:"exclamationmark.circle").foregroundStyle(MeterTheme.warning)
+                        Text(store.snapshot==nil ? "Данные ещё не получены. Подробности ошибки показаны вверху окна.":"Последние полученные значения сохранены. Обновление повторится автоматически; подробности ошибки показаны вверху окна.").font(.caption).foregroundStyle(MeterTheme.secondary)
                     } else if store.snapshot?.fresh(at:context.date)==true {
-                        Label("Данные Codex актуальны",systemImage:"checkmark.circle.fill").foregroundStyle(.mint)
+                        Label("Данные Codex актуальны",systemImage:"checkmark.circle.fill").foregroundStyle(MeterTheme.accent)
                     } else {
-                        Label(store.snapshot==nil ? "Ожидаем данные Codex":"Данные требуют обновления",systemImage:"clock").foregroundStyle(.secondary)
-                        Text("Откройте Codex и войдите в свой аккаунт, затем нажмите «Обновить данные».").font(.caption).foregroundStyle(.secondary)
+                        Label(store.snapshot==nil ? "Ожидаем данные Codex":"Данные требуют обновления",systemImage:"clock").foregroundStyle(MeterTheme.secondary)
+                        Text("Откройте Codex и войдите в свой аккаунт, затем нажмите «Обновить данные».").font(.caption).foregroundStyle(MeterTheme.secondary)
                     }
                     if let snapshot=store.snapshot {
                         Text("Последнее успешное обновление: \(snapshot.fetchedAt.formatted(date:.abbreviated,time:.shortened))")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(MeterTheme.secondary)
                     }
                 }.accessibilityElement(children:.contain)
             }
@@ -36,13 +36,13 @@ struct ConnectionCard:View {
                     .accessibilityIdentifier("connection-mode")
             }
             Text("Квота обновляется раз в минуту, история задач — каждые 15 секунд.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(MeterTheme.secondary)
             Button("Обновить данные") { store.refresh() }
                 .disabled(store.updating).accessibilityIdentifier("connection-refresh")
             DisclosureGroup("Дополнительные настройки",isExpanded:$advanced) {
                 VStack(alignment:.leading,spacing:12) {
                     Text("Ручной выбор нужен, если автоматический поиск не находит вашу установку Codex. Обычно менять здесь ничего не требуется.")
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                        .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                     Picker("Поиск Codex",selection:$manual) {
                         Text("Автоматически").tag(false)
                         Text("Выбрать вручную").tag(true)
@@ -55,9 +55,9 @@ struct ConnectionCard:View {
                             Button("Выбрать файл…") { chooseFile() }
                         }
                         Text("Выберите файл с именем codex, а не папку проекта. Приложение Codex.app можно раскрыть для выбора файла внутри.")
-                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                            .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                     }
-                    if let issue {Text(issue).font(.caption).foregroundStyle(.red).fixedSize(horizontal:false,vertical:true)}
+                    if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger).fixedSize(horizontal:false,vertical:true)}
                     Button("Применить способ поиска") {
                         do {
                             try store.saveCodexPath(manual ? path:"")

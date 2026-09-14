@@ -18,6 +18,7 @@ if CommandLine.arguments.dropFirst().first=="ui-check" {
 } else if CommandLine.arguments.count>2 && CommandLine.arguments[1]=="render" {
     MainActor.assumeIsolated {
     NSApplication.shared.setActivationPolicy(.accessory)
+    NSApp.appearance=NSAppearance(named:ProcessInfo.processInfo.environment["CODEX_METER_APPEARANCE"] == "dark" ? .darkAqua:.aqua)
     let store=MeterStore(startServices:false)
     if let error=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_ERROR"] {store.error=error}
     let isDashboard=CommandLine.arguments.count>3

@@ -68,7 +68,7 @@ struct TaskChooser: View {
                     .accessibilityIdentifier("task-choice-count")
                 Spacer()
                 Text("Недавние сверху")
-            }.font(.caption).foregroundStyle(.secondary)
+            }.font(.caption).foregroundStyle(MeterTheme.secondary)
             ScrollViewReader { proxy in
                 List(selection:listSelection) {
                     ForEach(matches) { row in
@@ -80,7 +80,7 @@ struct TaskChooser: View {
                                 Spacer(minLength:4)
                                 Text(row.statusLabel)
                                 Text(row.activity,format:.dateTime.day().month(.abbreviated).year())
-                            }.font(.caption).foregroundStyle(.secondary)
+                            }.font(.caption).foregroundStyle(.primary)
                         }.frame(height:56,alignment:.center).padding(.vertical,3)
                             .contentShape(Rectangle()).tag(row.id).id(row.id)
                             .help("\(row.title)\n\(row.kind) · \(row.statusLabel)\nЗапросов: \(row.runCount) · ID: \(row.id)")
@@ -92,7 +92,7 @@ struct TaskChooser: View {
                         if matches.isEmpty {
                             VStack(spacing:6) {
                                 Text("Задачи не найдены").font(.headline)
-                                Text("Измените поиск или выберите «Все».").font(.caption).foregroundStyle(.secondary)
+                                Text("Измените поиск или выберите «Все».").font(.caption).foregroundStyle(MeterTheme.secondary)
                             }.frame(maxWidth:.infinity,maxHeight:.infinity).allowsHitTesting(false)
                         }
                     }
@@ -106,7 +106,7 @@ struct TaskChooser: View {
                     Text("Выбрана: \(selected.title)").font(.caption.weight(.medium)).lineLimit(2)
                         .help("\(selected.title)\n\(selected.kind) · ID: \(selected.id)")
                 } else {
-                    Text("Выберите задачу · ↑ ↓ — перемещение по списку").font(.caption).foregroundStyle(.secondary)
+                    Text("Выберите задачу · ↑ ↓ — перемещение по списку").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
             }.frame(height:30,alignment:.topLeading).accessibilityIdentifier("task-choice-selected")
         }
@@ -128,6 +128,7 @@ struct TaskChooser: View {
 
 /// NSSearchField keeps native editing/cancel behavior and handles arrows while typing.
 private struct TaskSearchField:NSViewRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
     @Binding var text:String
     var autofocus:Bool
     var move:(Int)->Void
@@ -146,6 +147,7 @@ private struct TaskSearchField:NSViewRepresentable {
     }
     func updateNSView(_ field:NSSearchField,context:Context) {
         context.coordinator.parent=self
+        field.isEnabled=isEnabled
         if field.stringValue != text { field.stringValue=text }
     }
     final class Coordinator:NSObject,NSSearchFieldDelegate {
@@ -153,9 +155,11 @@ private struct TaskSearchField:NSViewRepresentable {
         init(_ parent:TaskSearchField) { self.parent=parent }
         func controlTextDidChange(_ notification:Notification) {
             guard let field=notification.object as? NSSearchField else{return}
+            guard field.isEnabled else{return}
             parent.text=field.stringValue
         }
         func control(_ control:NSControl,textView:NSTextView,doCommandBy commandSelector:Selector)->Bool {
+            guard control.isEnabled else{return true}
             if commandSelector == #selector(NSResponder.moveDown(_:)) { parent.move(1);return true }
             if commandSelector == #selector(NSResponder.moveUp(_:)) { parent.move(-1);return true }
             if commandSelector == #selector(NSResponder.insertNewline(_:)) { parent.confirm();return true }

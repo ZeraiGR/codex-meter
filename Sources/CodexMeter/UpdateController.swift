@@ -101,12 +101,12 @@ struct SoftwareUpdateCard:View {
     @ObservedObject var updater:UpdateController
     var body:some View {
         Card {
-            HStack {Text("Обновления приложения").font(.headline);Spacer();Text("v\(updater.currentVersion)").foregroundStyle(.secondary)}
-            if let version=updater.availableVersion {Label("Доступна версия \(version)",systemImage:"arrow.down.circle.fill").foregroundStyle(.mint)}
+            HStack {Text("Обновления приложения").font(.headline);Spacer();Text("v\(updater.currentVersion)").foregroundStyle(MeterTheme.secondary)}
+            if let version=updater.availableVersion {Label("Доступна версия \(version)",systemImage:"arrow.down.circle.fill").foregroundStyle(MeterTheme.accent)}
             Toggle("Проверять обновления автоматически",isOn:Binding(get:{updater.automaticChecks},set:updater.setAutomaticChecks))
-            Text("Проверяем каждые 15 минут, при запуске и после пробуждения Mac. Установка — по вашему выбору, с перезапуском приложения.").font(.caption).foregroundStyle(.secondary)
-            if let date=updater.lastChecked {Text("Последняя проверка: \(date.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(.secondary)}
-            if let issue=updater.issue {Text(issue).font(.caption).foregroundStyle(.orange)}
+            Text("Проверяем каждые 15 минут, при запуске и после пробуждения Mac. Установка — по вашему выбору, с перезапуском приложения.").font(.caption).foregroundStyle(MeterTheme.secondary)
+            if let date=updater.lastChecked {Text("Последняя проверка: \(date.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(MeterTheme.secondary)}
+            if let issue=updater.issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.warning)}
             Button(updater.availableVersion == nil ? "Проверить обновления…":"Посмотреть обновление…",action:updater.check)
                 .disabled(!updater.canCheck).accessibilityIdentifier("software-update-check")
         }

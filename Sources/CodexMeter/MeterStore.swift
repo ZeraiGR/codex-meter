@@ -13,6 +13,8 @@ import MeterCore
     @Published var error:String?
     @Published var updating=false
     @Published var loadingHistory=false
+    @Published private(set) var activity:String?
+    var isPerformingAction:Bool { activity != nil }
     @Published var tab="tasks"
     @Published var notifications=false
     @Published var notificationIssue:String?
@@ -31,6 +33,7 @@ import MeterCore
     private var networkTicks=0
     private var localBusy=false
     private var historyLoaded=false
+    private var localReload:Task<Void,Never>?
     private let notificationDelegate=MeterNotificationDelegate()
     private let directory=Database.defaultDirectory
     var currentPayment:Payment? {payments.first{$0.contains(Date())}}
@@ -90,8 +93,8 @@ import MeterCore
         }
     }
     func reloadLocal() {
-        guard !localBusy else{return};localBusy=true;loadingHistory = !historyLoaded
-        Task {
+        guard !localBusy,!isPerformingAction else{return};localBusy=true;loadingHistory = !historyLoaded
+        localReload=Task {
             do {
                 let result=try await Task.detached(priority:.utility) { [directory] in
                     let db=try Database(directory:directory);_ = try Journal.sync(db:db)
@@ -117,12 +120,48 @@ import MeterCore
             updating=false
         }
     }
-    func savePayment(_ payment:Payment) throws {try Database().savePayment(payment);payments=try Database().payments()}
-    func saveTask(_ task:WorkTask) throws {try Database().saveTask(task);reloadLocal()}
-    func assign(_ run:RunRecord,to task:WorkTask) throws {
-        let db=try Database();try db.saveTask(task);try db.bind(thread:run.thread,turn:run.id,task:task.id);reloadLocal()
+    /// Acquire the gate before creating a Task: two clicks in one event-loop turn
+    /// must not queue two writes. Keep it until the displayed summaries are current.
+    @discardableResult
+    func performAction(_ title:String,operation:@escaping @Sendable (Database)throws->Void,
+                       completion:@escaping (Result<Void,Error>)->Void = {_ in}) -> Bool {
+        guard !isPerformingAction else{return false}
+        activity=title
+        let pendingReload=localReload
+        Task {
+            await pendingReload?.value
+            defer {activity=nil}
+            do {
+                let result=try await Task.detached(priority:.userInitiated) { [directory] in
+                    let db=try Database(directory:directory)
+                    // Keep both the write and the resulting summary atomic. A
+                    // failed recalculation must leave the dialog safe to retry.
+                    return try db.transaction {
+                        try operation(db)
+                        return (try db.summaries(),try db.runs(),try db.payments())
+                    }
+                }.value
+                tasks=result.0;runs=result.1;payments=result.2;historyLoaded=true
+                completion(.success(()))
+            } catch {completion(.failure(error))}
+        }
+        return true
     }
-    func merge(_ source:String,_ target:String) throws {try Database().mergeTasks(source:source,target:target);reloadLocal()}
+    func savePayment(_ payment:Payment,completion:@escaping (Result<Void,Error>)->Void) {
+        performAction("Сохраняем платёж и пересчитываем стоимость…",operation: {try $0.savePayment(payment)},completion:completion)
+    }
+    func saveTask(_ task:WorkTask,completion:@escaping (Result<Void,Error>)->Void) {
+        performAction("Сохраняем задачу…",operation: {try $0.saveTask(task)},completion:completion)
+    }
+    func assign(_ run:RunRecord,to task:WorkTask,completion:@escaping (Result<Void,Error>)->Void) {
+        performAction("Добавляем запрос и пересчитываем задачу…",operation: {db in
+            if try db.task(task.id)==nil {try db.saveTask(task)}
+            try db.bind(thread:run.thread,turn:run.id,task:task.id)
+        },completion:completion)
+    }
+    func merge(_ source:String,_ target:String,completion:@escaping (Result<Void,Error>)->Void) {
+        performAction("Объединяем задачи и пересчитываем статистику…",operation: {try $0.mergeTasks(source:source,target:target)},completion:completion)
+    }
     func saveAlertSettings() throws {
         let parts=thresholds.split(separator:",").map{$0.trimmingCharacters(in:.whitespaces)}
         let values=parts.compactMap(Int.init)
@@ -215,7 +254,7 @@ enum Format {
         return "\(seconds/3600) ч \((seconds%3600)/60) мин"
     }
     static func status(_ s:String) -> String {["active":"В работе","paused":"Ожидает","completed":"Завершена","cancelled":"Отменена","failed":"Не удалась"][s] ?? s}
-    static func color(_ remaining:Double?) -> Color {guard let remaining else{return .secondary};return remaining<=10 ? .red:remaining<=20 ? .orange:remaining<=50 ? .yellow:.mint}
+    static func color(_ remaining:Double?) -> Color {guard let remaining else{return .secondary};return remaining<=10 ? MeterTheme.danger:remaining<=50 ? MeterTheme.warning:MeterTheme.accent}
 }
 
 private final class MeterNotificationDelegate:NSObject,UNUserNotificationCenterDelegate {

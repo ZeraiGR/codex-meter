@@ -56,6 +56,8 @@ import SwiftUI
         let message = "Не удалось обновить квоту.\n\naccount/rateLimits/read · код -32603\nПодробности ответа сервера"
         Clipboard.copy(message, to: pasteboard)
         check(pasteboard.string(forType: .string) == message, "Copy keeps full multiline error without changing user clipboard")
+        let actionPassed=ActionUIChecks.run()
+        let themePassed=ThemeUIChecks.run()
         let browserPassed=BrowserUIChecks.run()
         let headingPassed=HeadingUIChecks.run()
         let assignmentPassed=AssignmentUIChecks.run()
@@ -66,6 +68,6 @@ import SwiftUI
         let connectionPassed=ConnectionUIChecks.run()
         let taskListPassed=TaskListUIChecks.run()
         let updateSchedulePassed=UpdateScheduleChecks.run()
-        return browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && updateSchedulePassed && failures == 0
+        return actionPassed && themePassed && browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && updateSchedulePassed && failures == 0
     }
 }

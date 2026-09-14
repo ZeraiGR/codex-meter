@@ -52,10 +52,17 @@ public final class Database {
     }
     private func error() -> MeterError { MeterError(db.map { String(cString:sqlite3_errmsg($0)) } ?? "Ошибка SQLite") }
     public func transaction<T>(_ body: () throws -> T) throws -> T {
-        try exec("BEGIN IMMEDIATE")
-        do { let result=try body();try exec("COMMIT");return result }
-        catch { try? exec("ROLLBACK");throw error }
+        let outermost=sqlite3_get_autocommit(db) != 0
+        let name="tx_"+UUID().uuidString.replacingOccurrences(of:"-",with:"")
+        try exec(outermost ? "BEGIN IMMEDIATE":"SAVEPOINT \(name)")
+        do { let result=try body();try exec(outermost ? "COMMIT":"RELEASE \(name)");return result }
+        catch {
+            if outermost {try? exec("ROLLBACK")}
+            else {try? exec("ROLLBACK TO \(name)");try? exec("RELEASE \(name)")}
+            throw error
+        }
     }
+
     public func value(_ key: String) throws -> String? { try query("SELECT value FROM kv WHERE key=?",[key]).first?["value"] }
     public func set(_ key: String, _ value: String) throws { try exec("INSERT INTO kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[key,value]) }
     public func saveTask(_ task: WorkTask) throws { try exec("INSERT INTO tasks VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",[task.id,try Codec.encode(task)]) }
