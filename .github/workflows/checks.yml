@@ -1,0 +1,48 @@
+name: Quality
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Quality (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build universal app and run all gates
+        env:
+          METER_ARCHS: arm64 x86_64
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          bash scripts/check-quality.sh 2>&1 | tee artifacts/quality.log
+      - name: Archive the verified app preserving symlinks and permissions
+        if: matrix.runner == 'macos-15'
+        run: ditto -c -k --keepParent 'dist/Codex Meter.app' artifacts/tested-app.zip
+      - name: Save verified bundle
+        if: matrix.runner == 'macos-15'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tested-app
+          path: artifacts/tested-app.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve test reports and synthetic UI screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quality-${{ matrix.runner }}
+          path: |
+            artifacts/quality.log
+            artifacts/ui
+          retention-days: 14

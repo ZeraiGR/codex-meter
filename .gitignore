@@ -1,0 +1,13 @@
+.build/
+.vendor/
+dist/
+artifacts/
+.DS_Store
+__pycache__/
+*.pyc
+*.sqlite*
+*.key
+*.p12
+*.pem
+.env
+.env.*
