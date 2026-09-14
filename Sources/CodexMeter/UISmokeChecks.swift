@@ -39,11 +39,12 @@ import SwiftUI
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "First navigation closes panel and focuses dashboard")
         panel.makeKeyAndOrderFront(nil)
         navigation.showDashboard {}
-        settle()
+        settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "Existing dashboard comes forward on repeated navigation")
-        dashboard.miniaturize(nil); settle()
+        dashboard.miniaturize(nil); settle(until: { dashboard.isMiniaturized })
+        guard dashboard.isMiniaturized else {check(false,"Dashboard reaches minimized state before restoration");return false}
         panel.makeKeyAndOrderFront(nil)
-        navigation.showDashboard {}; settle()
+        navigation.showDashboard {}; settle(until: { !dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow })
         check(!dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow, "Minimized dashboard is restored")
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
