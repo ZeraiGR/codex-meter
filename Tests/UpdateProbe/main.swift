@@ -1,10 +1,15 @@
 // Isolated integration-test app. Never bundled in the distributable application.
 import AppKit
+import Combine
 import Sparkle
 import MeterCore
 
-@MainActor final class Probe:NSObject,SPUUserDriver,NSApplicationDelegate {
+@MainActor final class Probe:NSObject,SPUUserDriver,SPUUpdaterDelegate,NSApplicationDelegate {
     var updater:SPUUpdater!
+    var probeStarted=Date()
+    var foundVersion:String?
+    var observedCheckDate:Date?
+    var dateObservation:AnyCancellable?
     let root=Bundle.main.bundleURL.deletingLastPathComponent()
     func record(_ message:String) {try? message.write(to:root.appendingPathComponent("result.txt"),atomically:true,encoding:.utf8)}
     func applicationDidFinishLaunching(_ notification:Notification) {
@@ -24,10 +29,27 @@ import MeterCore
             try db.bind(thread:"fixture-thread",turn:"fixture-run",task:task.id)
             try db.set("test-marker","preserved")
             try JSONSerialization.data(withJSONObject:snapshot(db),options:[.sortedKeys]).write(to:root.appendingPathComponent("before.json"))
-            updater=SPUUpdater(hostBundle:.main,applicationBundle:.main,userDriver:self,delegate:nil)
+            updater=SPUUpdater(hostBundle:.main,applicationBundle:.main,userDriver:self,delegate:self)
+            dateObservation=updater.publisher(for:\.lastUpdateCheckDate).sink {[weak self] in self?.observedCheckDate=$0}
             try updater.start()
-            updater.checkForUpdates()
+            probeStarted=Date()
+            if Bundle.main.object(forInfoDictionaryKey:"ProbeInformationOnly") as? Bool == true {updater.checkForUpdateInformation()}
+            else {updater.checkForUpdates()}
         } catch {record("error: \(error)");NSApp.terminate(nil)}
+    }
+    func updater(_ updater:SPUUpdater,didFindValidUpdate item:SUAppcastItem) {
+        if Bundle.main.object(forInfoDictionaryKey:"ProbeInformationOnly") as? Bool == true {foundVersion=item.versionString}
+    }
+    func updater(_ updater:SPUUpdater,didFinishUpdateCycleFor updateCheck:SPUUpdateCheck,error:Error?) {
+        guard updateCheck == .updateInformation else{return}
+        guard let checked=observedCheckDate,checked>=probeStarted else {
+            record("error: informational check did not publish its completion timestamp")
+            NSApp.terminate(nil);return
+        }
+        if let error {record("rejected: \((error as NSError).code)")}
+        else if let foundVersion {record("information-found-"+foundVersion)}
+        else {record("error: informational check completed without a result")}
+        NSApp.terminate(nil)
     }
     func snapshot(_ db:Database)throws->[String:[[String:String]]] {
         var data=[String:[[String:String]]]()

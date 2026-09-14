@@ -24,6 +24,7 @@ ET.register_namespace("sparkle",NS)
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
     def do_GET(self):
+        self.server.request_paths.append(self.path)
         if self.path.endswith("/interrupted-download/update.zip"):
             self.send_response(200);self.send_header("Content-Length","1000000");self.end_headers()
             self.wfile.write(b"truncated");self.wfile.flush();self.close_connection=True
@@ -46,10 +47,11 @@ def main():
         run(*swift,ROOT/"scripts/test-key.swift",key)
         public=key.with_suffix(".key.pub").read_text()
         server=http.server.ThreadingHTTPServer(("127.0.0.1",0),functools.partial(QuietHandler,directory=str(root)))
+        server.request_paths=[]
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         base=f"http://127.0.0.1:{server.server_port}"
         try:
-            for case in ["install","tampered-archive","tampered-feed","offline","same-version","downgrade","unsupported-os","wrong-key","interrupted-download"]:
+            for case in ["information-only","information-tampered-feed","install","tampered-archive","tampered-feed","offline","same-version","downgrade","unsupported-os","wrong-key","interrupted-download"]:
                 folder=root/case;folder.mkdir()
                 signing_key=key
                 if case=="wrong-key":
@@ -61,7 +63,7 @@ def main():
                     macos=destination/"Contents/MacOS";macos.mkdir(parents=True)
                     shutil.copy2(probe,macos/"update-probe")
                     run("ditto",framework,destination/"Contents/Frameworks/Sparkle.framework")
-                    config=dict(CFBundleIdentifier=bundle_id,CFBundleName="Update Probe",CFBundleExecutable="update-probe",CFBundlePackageType="APPL",CFBundleVersion=version,CFBundleShortVersionString=version,LSMinimumSystemVersion="14.0",LSUIElement=True,SUFeedURL=f"{base}/{case}/appcast.xml",SUPublicEDKey=public,SUEnableAutomaticChecks=False,SUAllowsAutomaticUpdates=False,SUVerifyUpdateBeforeExtraction=True,SURequireSignedFeed=True,SUSignedFeedFailureExpirationInterval=0,NSAppTransportSecurity={"NSAllowsLocalNetworking":True,"NSAllowsArbitraryLoads":True})
+                    config=dict(ProbeInformationOnly=case.startswith("information-"),CFBundleIdentifier=bundle_id,CFBundleName="Update Probe",CFBundleExecutable="update-probe",CFBundlePackageType="APPL",CFBundleVersion=version,CFBundleShortVersionString=version,LSMinimumSystemVersion="14.0",LSUIElement=True,SUFeedURL=f"{base}/{case}/appcast.xml",SUPublicEDKey=public,SUEnableAutomaticChecks=False,SUAllowsAutomaticUpdates=False,SUVerifyUpdateBeforeExtraction=True,SURequireSignedFeed=True,SUSignedFeedFailureExpirationInterval=0,NSAppTransportSecurity={"NSAllowsLocalNetworking":True,"NSAllowsArbitraryLoads":True})
                     (destination/"Contents/Info.plist").write_bytes(plistlib.dumps(config))
                     run("codesign","--force","--sign","-",destination,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                 make_app(app,"101")
@@ -81,7 +83,7 @@ def main():
                 run(tools/"sign_update","--ed-key-file",signing_key,feed,stdout=subprocess.DEVNULL)
                 if case=="tampered-archive":
                     with archive.open("ab") as out:out.write(b"corrupt")
-                elif case=="tampered-feed":feed.write_text(feed.read_text().replace("Test release","Forged release"))
+                elif case in ["tampered-feed","information-tampered-feed"]:feed.write_text(feed.read_text().replace("Test release","Forged release"))
                 elif case=="offline":feed.unlink()
                 with (folder/"probe.log").open("w") as log:
                     process=subprocess.Popen([str(app/"Contents/MacOS/update-probe")],stdout=log,stderr=subprocess.STDOUT)
@@ -90,16 +92,18 @@ def main():
                     while time.monotonic()<deadline:
                         receipt=folder/"result.txt"
                         if receipt.exists():result=receipt.read_text()
-                        if result.startswith(("installed-","rejected:","no-update","error:")):break
+                        if result.startswith(("installed-","information-found-","rejected:","no-update","error:")):break
                         time.sleep(.2)
                     if process.poll() is None:
                         try:process.wait(timeout=5)
                         except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=5)
                 version=plistlib.loads((app/"Contents/Info.plist").read_bytes())["CFBundleVersion"]
-                expected="installed-and-relaunched-data-preserved" if case=="install" else "no-update" if case in ["same-version","downgrade","unsupported-os"] else "rejected:"
+                expected="information-found-102" if case=="information-only" else "installed-and-relaunched-data-preserved" if case=="install" else "no-update" if case in ["same-version","downgrade","unsupported-os"] else "rejected:"
                 if not result.startswith(expected) or version != ("102" if case=="install" else "101"):
                     print((folder/"probe.log").read_text()[-6000:])
                     raise AssertionError(f"{case}: result={result!r}, installed={version}")
+                if case.startswith("information-"):
+                    assert f"/{case}/update.zip" not in server.request_paths,"Informational check downloaded an archive"
                 print("PASS UPDATE",case,flush=True)
         finally:server.shutdown();server.server_close()
 

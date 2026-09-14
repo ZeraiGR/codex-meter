@@ -13,6 +13,8 @@ import UserNotifications
     @Published private(set) var lastChecked:Date?
     @Published private(set) var issue:String?
     private var controller:SPUStandardUpdaterController?
+    private var schedule:UpdateCheckScheduler?
+    private var probing=false
     var currentVersion:String {Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "—"}
 
     init(enabled:Bool) {
@@ -23,7 +25,14 @@ import UserNotifications
         controller.updater.publisher(for:\.canCheckForUpdates).assign(to:&$canCheck)
         controller.updater.publisher(for:\.automaticallyChecksForUpdates).assign(to:&$automaticChecks)
         controller.updater.publisher(for:\.lastUpdateCheckDate).assign(to:&$lastChecked)
-        do {try controller.updater.start()} catch {issue="Не удалось запустить проверку обновлений: \(error.localizedDescription)"}
+        do {
+            try controller.updater.start()
+            let schedule=UpdateCheckScheduler(
+                enabled:{[weak self] in self?.controller?.updater.automaticallyChecksForUpdates == true},
+                busy:{[weak self] in self?.controller?.updater.sessionInProgress != false},
+                check:{[weak self] in self?.probe()})
+            self.schedule=schedule;schedule.start()
+        } catch {issue="Не удалось запустить проверку обновлений: \(error.localizedDescription)"}
     }
     func check() {
         guard let controller else{return}
@@ -32,12 +41,35 @@ import UserNotifications
         issue=nil
         controller.checkForUpdates(nil)
     }
-    func setAutomaticChecks(_ enabled:Bool) {controller?.updater.automaticallyChecksForUpdates=enabled}
+    func setAutomaticChecks(_ enabled:Bool) {
+        controller?.updater.automaticallyChecksForUpdates=enabled
+        if enabled {schedule?.checkNow()}
+    }
+    private func probe() {
+        guard let updater=controller?.updater,updater.automaticallyChecksForUpdates,!updater.sessionInProgress else{return}
+        probing=true;updater.checkForUpdateInformation()
+    }
+    func updater(_ updater:SPUUpdater,didFindValidUpdate item:SUAppcastItem) {
+        guard probing else{return}
+        availableVersion=item.displayVersionString
+        announce(item)
+    }
+    func updater(_ updater:SPUUpdater,didFinishUpdateCycleFor updateCheck:SPUUpdateCheck,error:Error?) {
+        guard updateCheck == .updateInformation else{return}
+        probing=false
+        if let error=error as NSError? {
+            if error.code == SUError.noUpdateError.rawValue {availableVersion=nil;issue=nil}
+            else {issue="Проверка обновлений не завершена. Повторите позже."}
+        } else {issue=nil}
+    }
     var supportsGentleScheduledUpdateReminders:Bool {true}
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update:SUAppcastItem,andInImmediateFocus immediateFocus:Bool)->Bool {false}
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate:Bool,forUpdate update:SUAppcastItem,state:SPUUserUpdateState) {
         availableVersion=update.displayVersionString
         guard !state.userInitiated else{return}
+        announce(update)
+    }
+    private func announce(_ update:SUAppcastItem) {
         Task {
             let center=UNUserNotificationCenter.current()
             let permission=await center.notificationSettings()
@@ -72,7 +104,7 @@ struct SoftwareUpdateCard:View {
             HStack {Text("Обновления приложения").font(.headline);Spacer();Text("v\(updater.currentVersion)").foregroundStyle(.secondary)}
             if let version=updater.availableVersion {Label("Доступна версия \(version)",systemImage:"arrow.down.circle.fill").foregroundStyle(.mint)}
             Toggle("Проверять обновления автоматически",isOn:Binding(get:{updater.automaticChecks},set:updater.setAutomaticChecks))
-            Text("Проверяем раз в 4 часа. Установка — по вашему выбору, с перезапуском приложения.").font(.caption).foregroundStyle(.secondary)
+            Text("Проверяем каждые 15 минут, при запуске и после пробуждения Mac. Установка — по вашему выбору, с перезапуском приложения.").font(.caption).foregroundStyle(.secondary)
             if let date=updater.lastChecked {Text("Последняя проверка: \(date.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(.secondary)}
             if let issue=updater.issue {Text(issue).font(.caption).foregroundStyle(.orange)}
             Button(updater.availableVersion == nil ? "Проверить обновления…":"Посмотреть обновление…",action:updater.check)
