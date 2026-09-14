@@ -59,6 +59,7 @@ import SwiftUI
         let paymentDraftPassed=PaymentDraftUIChecks.run()
         let connectionPassed=ConnectionUIChecks.run()
         let taskListPassed=TaskListUIChecks.run()
-        return browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && failures == 0
+        let updateSchedulePassed=UpdateScheduleChecks.run()
+        return browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && updateSchedulePassed && failures == 0
     }
 }

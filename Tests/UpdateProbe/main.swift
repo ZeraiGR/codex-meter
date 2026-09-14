@@ -3,7 +3,7 @@ import AppKit
 import Sparkle
 import MeterCore
 
-@MainActor final class Probe:NSObject,SPUUserDriver,NSApplicationDelegate {
+@MainActor final class Probe:NSObject,SPUUserDriver,SPUUpdaterDelegate,NSApplicationDelegate {
     var updater:SPUUpdater!
     let root=Bundle.main.bundleURL.deletingLastPathComponent()
     func record(_ message:String) {try? message.write(to:root.appendingPathComponent("result.txt"),atomically:true,encoding:.utf8)}
@@ -24,10 +24,19 @@ import MeterCore
             try db.bind(thread:"fixture-thread",turn:"fixture-run",task:task.id)
             try db.set("test-marker","preserved")
             try JSONSerialization.data(withJSONObject:snapshot(db),options:[.sortedKeys]).write(to:root.appendingPathComponent("before.json"))
-            updater=SPUUpdater(hostBundle:.main,applicationBundle:.main,userDriver:self,delegate:nil)
+            updater=SPUUpdater(hostBundle:.main,applicationBundle:.main,userDriver:self,delegate:self)
             try updater.start()
-            updater.checkForUpdates()
+            if Bundle.main.object(forInfoDictionaryKey:"ProbeInformationOnly") as? Bool == true {updater.checkForUpdateInformation()}
+            else {updater.checkForUpdates()}
         } catch {record("error: \(error)");NSApp.terminate(nil)}
+    }
+    func updater(_ updater:SPUUpdater,didFindValidUpdate item:SUAppcastItem) {
+        if Bundle.main.object(forInfoDictionaryKey:"ProbeInformationOnly") as? Bool == true {record("information-found-"+item.versionString)}
+    }
+    func updater(_ updater:SPUUpdater,didFinishUpdateCycleFor updateCheck:SPUUpdateCheck,error:Error?) {
+        guard updateCheck == .updateInformation else{return}
+        if let error {record("rejected: \((error as NSError).code)")}
+        NSApp.terminate(nil)
     }
     func snapshot(_ db:Database)throws->[String:[[String:String]]] {
         var data=[String:[[String:String]]]()

@@ -1,8 +1,15 @@
 # Updates and release quality
 
 Codex Meter uses Sparkle 2.10.0 to discover, download, authenticate and install
-updates. The app checks the stable GitHub release feed every four hours while it is
-running. Automatic checks can be disabled in Settings; manual checks remain available.
+updates. The app checks the stable GitHub release feed every 15 minutes while it is running, on launch and after the Mac wakes. Wake events
+are coalesced with a five-second delay to let networking resume. Automatic checks can
+be disabled in Settings; this also disables launch and wake probes. Manual checks remain available.
+
+A dedicated scheduler uses Sparkle’s `checkForUpdateInformation` to discover signed
+releases without downloading or installing an archive. Sparkle’s built-in scheduler
+has a one-hour minimum; its fallback interval is one hour. Probes skip active update
+sessions, so they do not interrupt a download or installation. Finding a release
+updates the badge and notification; choosing it starts Sparkle’s normal installation flow.
 
 ## What the user sees
 
@@ -48,9 +55,10 @@ and Intel (`macos-15-intel`) runners build a universal app and execute:
 | Core checks | Accounting, partial coverage, time overlap, imports, task lifecycle and forecasts. |
 | RPC checks | Transient failure, retry limit, authentication failure and broken connection. |
 | Schema-v1 upgrade fixture | Existing tasks, payments, bindings and token totals remain readable; editing a task preserves unrelated rows. |
-| Native UI checks | Selection, sorting, filtering, window navigation, layout and editing regressions. |
+| Native UI and discovery scheduler checks | Selection, sorting, filtering, window navigation, layout and editing regressions; launch, timer, wake coalescing, disabled checks and overlapping sessions. |
 | Release tests | Wrong application identity or origin, missing signature requirements, inconsistent versions, mutable download URLs and invalid metadata. |
 | Real Sparkle installation | Download, archive verification, actual app replacement, relaunch and preserved synthetic database rows. |
+| Informational discovery | Signed feed discovery without downloading the archive; forged feeds are rejected. |
 | Adversarial update scenarios | Corrupt archive, forged feed, unavailable feed, interrupted download, wrong signing key, unsupported macOS, same version and downgrade. |
 | Bundle and source checks | Invalid code signatures and accidental publication of private/generated material. |
 
