@@ -38,6 +38,11 @@ struct PopoverView:View {
             HStack {
                 Image(systemName:"circle.hexagongrid.fill").foregroundStyle(MeterTheme.accent)
                 Text("Codex Meter").font(.headline)
+                Text("v\(store.updates.currentVersion)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(MeterTheme.secondary)
+                    .help("Установленная версия Codex Meter")
+                    .accessibilityLabel("Установленная версия \(store.updates.currentVersion)")
+                    .accessibilityIdentifier("installed-version")
                 Spacer()
                 if store.updating {ProgressView().controlSize(.small)}
                 Button {store.refresh()} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).disabled(store.updating).help("Обновить")

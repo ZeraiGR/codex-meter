@@ -25,7 +25,8 @@ token tracking and task-level cost estimates.
 ## Your quota, one click away
 
 See how much Codex quota remains, when it resets and how usage compares with the
-time left in the current quota window. No separate API key or paid API account.
+time left in the current quota window. The installed app version is visible in the
+panel header. No separate API key or paid API account.
 
 <p align="center"><img src="docs/images/menu-bar.png" width="420" alt="Codex Meter macOS menu bar panel with remaining weekly quota, remaining time and subscription resource estimate"></p>
 
