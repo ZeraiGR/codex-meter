@@ -87,6 +87,22 @@ Start a new Codex session after installation. Ask to start a named task; helper 
 and follow-up prompts can then contribute to the same outcome. Historical runs can
 also be assigned manually. See the [usage guide](docs/usage.ru.md).
 
+## Network access and quota errors
+
+`account/rateLimits/read` reads the subscription quota; its name does not mean a
+rate limit was reached. An HTTP 403 HTML page is an access failure. A menu bar app
+may not inherit proxy settings from a terminal, even when terminal Codex works.
+In **Settings → Codex data → Advanced settings**, select a compatible executable
+launcher that prepares your network environment and forwards Codex arguments.
+Use the same launcher independently of a temporary terminal proxy port.
+
+The current source skips immediate retries for HTTP 403 and 429, omits HTML error
+pages and backs off automatic polling after failures (up to 15 minutes). A 403
+starts with a five-minute pause; other failures start with one minute. Manual
+refresh remains available. Successful refresh restores normal minute polling.
+These safeguards require a build containing the change; configuring a launcher
+also works in existing versions. No quota value is changed locally.
+
 ## Honest estimates
 
 - **Quota is not a fixed token allowance.** The app cannot promise a number of remaining tokens.

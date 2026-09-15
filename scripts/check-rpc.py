@@ -26,16 +26,19 @@ for line in sys.stdin:
         result = {'account': {'type': 'chatgpt', 'planType': 'plus', 'email': 'test@example.invalid'}}
     if method == 'account/rateLimits/read':
         if mode == 'closed': sys.exit(0)
+        if mode in ('blocked', 'throttled', 'unavailable'):
+            messages = {'blocked': 'GET https://example.invalid/usage failed: 403 Forbidden; content-type=text/html; body=<html>blocked-ip private-page</html>', 'throttled': '429 Too Many Requests', 'unavailable': 'request failed: 503 Service Unavailable'}
+            error = {'code': -32603, 'message': messages[mode]}
         if mode == 'permanent' or mode == 'auth' or (mode == 'transient' and attempt < 3):
             error = {'code': -32603, 'message': '401 Unauthorized' if mode == 'auth' else 'temporary upstream failure; Bearer test-secret'}
-        else:
+        elif error is None:
             result = {'rateLimits': {'limitId': 'codex', 'primary': {'usedPercent': 17, 'windowDurationMins': 10080, 'resetsAt': 2000000000}}}
     response = {'id': request['id']}
     response.update({'error': error} if error else {'result': result})
     print(json.dumps(response), flush=True)
 '''
 
-for mode, attempts in [('transient', 3), ('permanent', 3), ('auth', 1), ('closed', 3)]:
+for mode, attempts in [('transient', 3), ('permanent', 3), ('auth', 1), ('closed', 3), ('blocked', 1), ('throttled', 1), ('unavailable', 3)]:
     with tempfile.TemporaryDirectory(prefix='codex-meter-rpc-') as directory:
         root = Path(directory)
         fake = root / 'fake-codex'
@@ -58,6 +61,10 @@ for mode, attempts in [('transient', 3), ('permanent', 3), ('auth', 1), ('closed
             assert 'account/rateLimits/read' in result.stderr, result.stderr
             assert 'test-secret' not in result.stderr, result.stderr
             if mode == 'auth': assert 'войдите снова' in result.stderr
+            if mode == 'blocked':
+                assert 'не означает исчерпание квоты' in result.stderr
+                assert '<html>' not in result.stderr and 'private-page' not in result.stderr
+            if mode == 'throttled': assert 'частоту запросов' in result.stderr
             with sqlite3.connect(root / 'meter.sqlite') as db:
                 assert db.execute("SELECT value FROM kv WHERE key='snapshot'").fetchone()[0] == old
         print('PASS RPC ' + mode, flush=True)

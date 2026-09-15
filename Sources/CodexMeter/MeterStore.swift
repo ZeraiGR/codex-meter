@@ -31,6 +31,7 @@ import MeterCore
     private var updateObservation:AnyCancellable?
     private var timer:Timer?
     private var networkTicks=0
+    private var quotaRefreshSchedule=QuotaRefreshSchedule()
     private var localBusy=false
     private var historyLoaded=false
     private var localReload:Task<Void,Never>?
@@ -66,11 +67,11 @@ import MeterCore
             Task { @MainActor in
                 guard let self else{return};self.networkTicks += 1
                 self.reloadLocal()
-                if self.networkTicks%4==0 {self.refresh()}
+                if self.networkTicks%4==0 {self.refresh(manual:false)}
             }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didWakeNotification,object:nil,queue:.main) { [weak self] _ in
-            Task{@MainActor in self?.refresh();self?.reloadLocal()}
+            Task{@MainActor in self?.refresh(manual:false);self?.reloadLocal()}
         }
         reloadLocal();refresh()
         Task {
@@ -105,8 +106,8 @@ import MeterCore
             localBusy=false;loadingHistory=false
         }
     }
-    func refresh() {
-        guard !updating else{return};updating=true
+    func refresh(manual:Bool = true) {
+        guard !updating,manual || quotaRefreshSchedule.isDue(at:Date()) else{return};updating=true
         Task {
             do {
                 let value=try await Task.detached(priority:.utility) { [directory] in
@@ -114,9 +115,13 @@ import MeterCore
                     try db.saveSnapshot(value);return value
                 }.value
                 snapshot=value;error=nil;connectionError=nil
+                quotaRefreshSchedule.succeeded(at:Date())
                 await notifyIfNeeded(value)
                 reloadLocal()
-            } catch {self.error=error.localizedDescription;connectionError=error.localizedDescription}
+            } catch {
+                quotaRefreshSchedule.failed(error,at:Date())
+                self.error=error.localizedDescription;connectionError=error.localizedDescription
+            }
             updating=false
         }
     }
