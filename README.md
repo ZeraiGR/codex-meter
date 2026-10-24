@@ -35,7 +35,9 @@ panel header. No separate API key or paid API account.
 Screenshots use synthetic example data. The current interface is in Russian.
 The panel uses an opaque background and adapts to macOS light and dark appearance.
 Saving, assigning runs and merging tasks show progress and block repeated actions
-until the displayed statistics are current.
+until the displayed statistics are current. In Runs, choose “Выбрать несколько”,
+check the runs, then add them to an existing or new task together. The whole batch
+saves atomically; an error leaves the original assignments intact.
 
 ## Understand the work behind the numbers
 
@@ -51,7 +53,7 @@ and compare the time, tokens and measured quota used by each task.
 | Am I using it too quickly? | Quota remaining alongside time remaining in the same window. |
 | Which tasks use the most? | Sort by tokens, active time, measured cost, weekly quota, activity or title. Filter by status and task type. |
 | What did this run do? | Requests and responses from local Codex journals, with text search and copy. |
-| What did a task cost? | Its measured share of the payment you entered, with partial coverage and a separate approximate total. |
+| What did a task cost? | Its measured share of the payment you entered, with partial coverage, a separate approximate total and a current USD equivalent. |
 | Will a similar task fit? | Historical estimates for recurring task types, with uncertainty and risk labels. |
 | Is there a newer version? | Signed update checks, a menu indicator and a notification when allowed by macOS. |
 
@@ -87,16 +89,40 @@ Start a new Codex session after installation. Ask to start a named task; helper 
 and follow-up prompts can then contribute to the same outcome. Historical runs can
 also be assigned manually. See the [usage guide](docs/usage.ru.md).
 
+## Network access and quota errors
+
+`account/rateLimits/read` reads the subscription quota; its name does not mean a
+rate limit was reached. An HTTP 403 HTML page is an access failure. A menu bar app
+may not inherit proxy settings from a terminal, even when terminal Codex works.
+In **Settings → Codex data → Advanced settings**, select a compatible executable
+launcher that prepares your network environment and forwards Codex arguments.
+Use the same launcher independently of a temporary terminal proxy port.
+
+The current source skips immediate retries for HTTP 403 and 429, omits HTML error
+pages and backs off automatic polling after failures (up to 15 minutes). A 403
+starts with a five-minute pause; other failures start with one minute. Manual
+refresh remains available. Successful refresh restores normal minute polling.
+These safeguards require a build containing the change; configuring a launcher
+also works in existing versions. No quota value is changed locally.
+
 ## Honest estimates
 
 - **Quota is not a fixed token allowance.** The app cannot promise a number of remaining tokens.
 - Quota comes from Codex account data; token counts come from available local journals.
 - Task quota is attributed from consecutive measurements. Parallel or unobserved activity
   affects accuracy; missing measurements are shown explicitly.
-- Cost is an allocation of your recorded subscription payment, currently in rubles.
+- Cost is an allocation of your recorded subscription payment in rubles.
+  Task amounts also show a USD equivalent using the Bank of Russia rate for the current Moscow date.
   It is neither an API bill nor a refundable cash balance.
 - A multi-week task may consume more than 100% of one weekly quota.
 - Forecasts describe historical tasks; they do not guarantee the next task will finish.
+
+The task list and cost card display USD alongside RUB, including the measured part
+and the projected total separately. USD = rubles / rubles per dollar. The card shows
+the effective rate date and an **Update rate** action. Rates refresh at startup and
+hourly, with a 15-minute retry after failure. A saved rate remains available offline
+and is marked when stale or a refresh fails. Without a rate, USD remains unavailable.
+Past tasks use the current rate too; this is not a historical payment conversion.
 
 ## Local data and privacy
 
@@ -104,7 +130,9 @@ Tasks, payments, counters, short message excerpts and journal paths are stored i
 `~/Library/Application Support/CodexMeter/meter.sqlite`. Full conversations are read
 from original Codex journals on demand. The app does not upload your task history.
 
-Network requests read Codex account usage and check/download releases from GitHub.
+Network requests read Codex account usage, retrieve the public USD/RUB rate from the
+Bank of Russia and check/download releases from GitHub. The exchange-rate request contains
+only a date, never task or payment data.
 Sparkle system profiling is disabled. Data is not encrypted by the app and there is no
 cloud synchronization. [Third-party notices](THIRD_PARTY_NOTICES.md). Never attach your real database or raw journals to a public issue.
 
@@ -146,3 +174,15 @@ key. [Release and recovery details](docs/updates.md).
 
 Independent project; not affiliated with or endorsed by OpenAI. OpenAI and Codex
 are trademarks of their respective owners.
+
+## Telegram companion
+
+An optional private Telegram bot supports `/limits`, reset reminders at 48/24/6 hours,
+and named Codex sessions with selection buttons and up to three concurrent requests by default.
+Sessions share the configured project directory. Setup, access boundaries and
+Mac sleep limitations are documented in [the Telegram guide](docs/telegram.md).
+Telegram API traffic can use a dedicated SSH tunnel through a VPS while Codex keeps its existing network settings.
+
+Reset dates come from the latest server response. Zero-use moving deadlines are
+labelled provisional, and weekly deadline changes include the previous date and
+observation time. An expired timestamp alone does not prove a quota reset.

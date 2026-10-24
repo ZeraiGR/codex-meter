@@ -27,7 +27,10 @@ import MeterCore
             check(!UIAccessibility.frame(label).intersects(UIAccessibility.frame(reset)),"Week percentages do not overlap the reset date")
         } else {check(false,"Time percentage and reset date are accessible")}
         host.rootView=QuotaRowContent(window:quota,now:now.addingTimeInterval(duration)).padding(18).frame(width:420).background(Color(nsColor:.windowBackgroundColor));settle()
-        check(value("quota-time-caption")==nil && value("quota-reset-message")?.contains("Период завершён")==true,"Expired window waits for a server reset instead of starting an invented week")
+        check(value("quota-time-caption")==nil && value("quota-reset-message")?.contains("ждём обновления")==true,"Expired window waits for a server reset instead of starting an invented week")
+        var provisional=quota;provisional.resetIsProvisional=true
+        host.rootView=QuotaRowContent(window:provisional,now:now).padding(18).frame(width:420).background(Color(nsColor:.windowBackgroundColor));settle()
+        check(value("quota-time-caption")==nil && UIAccessibility.find(host,"quota-reset-provisional") != nil,"Moving zero-use deadline is labelled and has no fabricated progress")
         host.rootView=QuotaRowContent(window:QuotaWindow(usedPercent:37,windowDurationMins:nil,resetsAt:nil),now:now).padding(18).frame(width:420).background(Color(nsColor:.windowBackgroundColor));settle()
         check(value("quota-time-caption")==nil && value("quota-time-bar")==nil,"Unknown duration and reset do not show a fabricated time percentage")
 

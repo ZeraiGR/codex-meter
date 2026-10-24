@@ -19,6 +19,8 @@ public struct QuotaWindow: Codable, Equatable {
     public var usedPercent: Double
     public var windowDurationMins: Int?
     public var resetsAt: Double?
+    /// A zero-use response can report a moving now + duration placeholder.
+    public var resetIsProvisional: Bool?
     public init(usedPercent: Double, windowDurationMins: Int?, resetsAt: Double?) {
         self.usedPercent = usedPercent; self.windowDurationMins = windowDurationMins; self.resetsAt = resetsAt
     }
@@ -28,7 +30,7 @@ public struct QuotaWindow: Codable, Equatable {
     /// Progress of the server's current quota window, independent of calendar weeks.
     /// After expiry we wait for a new reset timestamp instead of inventing a window.
     public func elapsedPercent(at date:Date)->Double? {
-        guard duration>0,let reset=resetsAt,reset.isFinite,date.timeIntervalSince1970.isFinite else { return nil }
+        guard resetIsProvisional != true,duration>0,let reset=resetsAt,reset.isFinite,date.timeIntervalSince1970.isFinite else { return nil }
         let start=reset-duration,now=date.timeIntervalSince1970
         guard now>=start,now<reset else { return nil }
         return max(0,min(100,(now-start)/duration*100))
@@ -71,6 +73,7 @@ public struct AccountSnapshot: Codable {
     public var daily: [DailyUsage]?
     public var lifetimeTokens: Int64?
     public var usageError: String?
+    public var weeklyResetChange: WeeklyResetChange?
     public var main: QuotaBucket? { buckets.first { $0.id == "codex" } }
     public var moneyWindow: QuotaWindow? { main?.windows.filter { $0.duration > 0 }.max { $0.duration < $1.duration } }
     public init(accountKey: String, plan: String = "", fetchedAt: Date = Date(), buckets: [QuotaBucket], daily: [DailyUsage]? = nil, lifetimeTokens: Int64? = nil, usageError: String? = nil) {

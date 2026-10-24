@@ -35,13 +35,13 @@ struct ConnectionCard:View {
                     .font(.callout).fixedSize(horizontal:false,vertical:true)
                     .accessibilityIdentifier("connection-mode")
             }
-            Text("Квота обновляется раз в минуту, история задач — каждые 15 секунд.")
-                .font(.caption).foregroundStyle(MeterTheme.secondary)
+            Text("Квота обновляется раз в минуту. При ошибках пауза увеличивается до 15 минут; можно повторить проверку вручную. История задач обновляется каждые 15 секунд.")
+                .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
             Button("Обновить данные") { store.refresh() }
                 .disabled(store.updating).accessibilityIdentifier("connection-refresh")
             DisclosureGroup("Дополнительные настройки",isExpanded:$advanced) {
                 VStack(alignment:.leading,spacing:12) {
-                    Text("Ручной выбор нужен, если автоматический поиск не находит вашу установку Codex. Обычно менять здесь ничего не требуется.")
+                    Text("Ручной выбор нужен для другой установки Codex или скрипта запуска, который готовит прокси и окружение. Настройки прокси терминала могут быть недоступны приложению.")
                         .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                     Picker("Поиск Codex",selection:$manual) {
                         Text("Автоматически").tag(false)
@@ -54,7 +54,7 @@ struct ConnectionCard:View {
                                 .textFieldStyle(.roundedBorder).accessibilityIdentifier("connection-path")
                             Button("Выбрать файл…") { chooseFile() }
                         }
-                        Text("Выберите файл с именем codex, а не папку проекта. Приложение Codex.app можно раскрыть для выбора файла внутри.")
+                        Text("Выберите исполняемый файл Codex или совместимый скрипт запуска, а не папку проекта. Скрипт должен передавать аргументы Codex без изменений.")
                             .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                     }
                     if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger).fixedSize(horizontal:false,vertical:true)}

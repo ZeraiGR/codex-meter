@@ -28,7 +28,11 @@ struct QuotaRowContent:View {
                     .accessibilityValue("\(Int(window.remaining))%")
                     .accessibilityIdentifier("quota-remaining-bar")
             }
-            if let elapsed=window.elapsedPercent(at:now) {
+            if window.resetIsProvisional == true {
+                Text("Срок пока не подтверждён: при нулевом расходе сервер может сдвигать дату. Уточним после начала использования.")
+                    .font(.caption).foregroundStyle(MeterTheme.warning)
+                    .accessibilityIdentifier("quota-reset-provisional")
+            } else if let elapsed=window.elapsedPercent(at:now) {
                 let passed=Int(elapsed.rounded()),remaining=100-passed
                 VStack(alignment:.leading,spacing:7) {
                     HStack {
@@ -52,7 +56,7 @@ struct QuotaRowContent:View {
             if let reset=window.resetDate,reset.timeIntervalSince1970.isFinite {
                 HStack {
                     Image(systemName:"arrow.trianglehead.clockwise")
-                    Text(reset>now ? "Восстановление через \(Format.time(reset.timeIntervalSince(now)))":"Период завершён · проверяем восстановление…")
+                    Text(window.resetIsProvisional == true ? "Предварительная дата сервера":(reset>now ? "По данным сервера, через \(Format.time(reset.timeIntervalSince(now)))":"Срок по прежним данным истёк · ждём обновления…"))
                         .accessibilityIdentifier("quota-reset-message")
                     Spacer()
                     Text(reset.formatted(date:.abbreviated,time:.shortened))

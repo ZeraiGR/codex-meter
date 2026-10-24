@@ -9,19 +9,39 @@ public struct CodexServiceError: LocalizedError {
     public init(method: String, code: Int, message: String) {
         self.method = method; self.code = code
         // Server diagnostics can contain request headers. Never copy credentials.
-        self.message = message
+        let plain = message.replacingOccurrences(of: "(?is)(?:<!doctype\\s+html|<html)\\b.*", with: "[HTML-страница ответа опущена]", options: .regularExpression)
+        let sanitized = plain
             .replacingOccurrences(of: "(?i)bearer\\s+[^\\s,;]+", with: "Bearer [скрыто]", options: .regularExpression)
             .replacingOccurrences(of: "\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b", with: "[скрыто]", options: .regularExpression)
+        self.message = String(sanitized.prefix(1600))
     }
     public var requiresLogin: Bool {
         let text = message.lowercased()
-        return code == 401 || ["401 unauthorized", "status: 401", "status code 401", "not authenticated", "not logged in", "authentication required", "refresh_token", "token has expired"].contains { text.contains($0) }
+        return httpStatus == 401 || ["401 unauthorized", "status: 401", "status code 401", "not authenticated", "not logged in", "authentication required", "refresh_token", "token has expired"].contains { text.contains($0) }
     }
-    public var retryable: Bool { !requiresLogin && [-32603, -32098, -32099].contains(code) }
+    public var httpStatus: Int? {
+        if (400..<600).contains(code) { return code }
+        let pattern = "(?i)(?:failed:\\s*|status(?:\\s+code)?\\s*[:=]?\\s*|HTTP(?:/[^ ]+)?\\s+)([45][0-9]{2})\\b|\\b(401 Unauthorized|403 Forbidden|429 Too Many Requests)\\b"
+        guard let match = message.range(of: pattern, options: .regularExpression),
+              let digits = message[match].range(of: "[45][0-9]{2}", options: .regularExpression) else { return nil }
+        return Int(message[digits])
+    }
+    public var retryable: Bool {
+        guard !requiresLogin else { return false }
+        if let status = httpStatus { return status >= 500 }
+        return [-32603, -32098, -32099].contains(code)
+    }
     public var errorDescription: String? {
-        let summary = requiresLogin
-            ? "Codex не подтвердил вход в аккаунт. Откройте Codex и войдите снова, затем обновите данные."
-            : "Не удалось обновить данные Codex. Последние полученные значения сохранены; обновление повторится автоматически."
+        let summary: String
+        if requiresLogin {
+            summary = "Codex не подтвердил вход в аккаунт. Откройте Codex и войдите снова, затем обновите данные."
+        } else if httpStatus == 403 {
+            summary = "Сервис отклонил доступ к данным Codex (HTTP 403). Этот ответ не означает исчерпание квоты. Проверьте сетевой доступ и способ запуска Codex: приложение может не получать прокси из терминала. Последние значения сохранены."
+        } else if httpStatus == 429 {
+            summary = "Сервис временно ограничил частоту запросов (HTTP 429). Последние значения сохранены; автоматическая проверка повторится с увеличенной паузой."
+        } else {
+            summary = "Не удалось обновить данные Codex. Последние полученные значения сохранены; обновление повторится автоматически."
+        }
         return summary + "\n\n\(method) · код \(code)\n\(message)"
     }
 }
@@ -92,7 +112,7 @@ public final class CodexClient {
             }
             lifetime=((usage["summary"] as? [String:Any])?["lifetimeTokens"] as? NSNumber)?.int64Value
         } catch { usageError="История аккаунта временно недоступна" }
-        return AccountSnapshot(accountKey:key,plan:account["planType"] as? String ?? "ChatGPT",buckets:buckets.sorted{$0.id=="codex" && $1.id != "codex"},daily:daily,lifetimeTokens:lifetime,usageError:usageError)
+        return AccountSnapshot(accountKey:key,plan:account["planType"] as? String ?? "ChatGPT",buckets:buckets.sorted{$0.id=="codex" && $1.id != "codex"},daily:daily,lifetimeTokens:lifetime,usageError:usageError).withQuotaEvidence(previous:try? db.snapshot())
     }
 }
 
