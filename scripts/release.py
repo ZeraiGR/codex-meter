@@ -50,7 +50,7 @@ def appcast(info,url,size,signature,notes):
     ET.SubElement(item,f"{{{NS}}}version").text=info["CFBundleVersion"]
     ET.SubElement(item,f"{{{NS}}}shortVersionString").text=info["CFBundleShortVersionString"]
     ET.SubElement(item,f"{{{NS}}}minimumSystemVersion").text=info["LSMinimumSystemVersion"]
-    ET.SubElement(item,"description",{f"{{{NS}}}descriptionFormat":"plain-text"}).text=notes
+    ET.SubElement(item,"description",{f"{{{NS}}}format":"markdown"}).text=notes
     ET.SubElement(item,"enclosure",{"url":url,"length":str(size),"type":"application/octet-stream",f"{{{NS}}}edSignature":signature})
     return ET.tostring(rss,encoding="utf-8",xml_declaration=True)
 

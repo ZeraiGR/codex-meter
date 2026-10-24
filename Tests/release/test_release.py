@@ -45,6 +45,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(feed.find(".//description").text,"<script>alert('x')</script> & notes")
         self.assertEqual(feed.find(".//enclosure").get("length"),"1024")
         self.assertEqual(feed.find(f".//{{{release.NS}}}version").text,self.info["CFBundleVersion"])
+    def test_markdown_release_notes_keep_blocks_and_explicit_format(self):
+        notes="# Release\n\n- **First feature.** Details.\n- Second feature.\n\nHistory stays intact."
+        url=f"https://github.com/{release.REPO}/releases/download/v{self.info['CFBundleShortVersionString']}/app.zip"
+        feed=ET.fromstring(release.appcast(self.info,url,1024,"A"*86+"==",notes))
+        description=feed.find(".//description")
+        self.assertEqual(description.get(f"{{{release.NS}}}format"),"markdown")
+        self.assertEqual(description.text,notes)
+        self.assertNotIn(f"{{{release.NS}}}descriptionFormat",description.attrib)
     def test_mutable_or_insecure_download_is_rejected(self):
         for url in ["http://example.com/app.zip",f"https://github.com/{release.REPO}/releases/latest/download/app.zip"]:
             with self.assertRaises(ValueError):release.appcast(self.info,url,100,"A"*86+"==","")
