@@ -11,6 +11,10 @@ import MeterCore
     @Published var runs:[RunRecord]=[]
     @Published var payments:[Payment]=[]
     @Published var error:String?
+    @Published var exchangeRate:USDExchangeRate?
+    @Published var exchangeRateIssue:String?
+    @Published var updatingExchangeRate=false
+    private var nextExchangeRateRefresh=Date.distantPast
     @Published var updating=false
     @Published var loadingHistory=false
     @Published private(set) var activity:String?
@@ -47,6 +51,7 @@ import MeterCore
         updates=UpdateController(enabled:startServices)
         do {
             let db=try Database();snapshot=try db.snapshot();payments=try db.payments()
+            exchangeRate=try USDExchangeRate.cached(in:db)
             notifications=try db.value("notifications") != "false"
             let issue=try db.value("notificationIssue") ?? ""
             notificationIssue=issue.isEmpty ? nil:issue
@@ -106,7 +111,25 @@ import MeterCore
             localBusy=false;loadingHistory=false
         }
     }
+    func refreshExchangeRate(manual:Bool = true) {
+        guard !updatingExchangeRate,manual || Date()>=nextExchangeRateRefresh else{return}
+        updatingExchangeRate=true
+        Task {
+            defer {updatingExchangeRate=false}
+            do {
+                let rate=try await CBRExchangeRateClient.fetch()
+                exchangeRate=rate;exchangeRateIssue=nil
+                nextExchangeRateRefresh=Date().addingTimeInterval(3600)
+                do {try rate.save(in:Database(directory:directory))}
+                catch {exchangeRateIssue="Курс получен, но не сохранён для работы без сети."}
+            } catch {
+                exchangeRateIssue="Не удалось обновить курс USD."
+                nextExchangeRateRefresh=Date().addingTimeInterval(900)
+            }
+        }
+    }
     func refresh(manual:Bool = true) {
+        refreshExchangeRate(manual:manual)
         guard !updating,manual || quotaRefreshSchedule.isDue(at:Date()) else{return};updating=true
         Task {
             do {
@@ -159,9 +182,13 @@ import MeterCore
         performAction("Сохраняем задачу…",operation: {try $0.saveTask(task)},completion:completion)
     }
     func assign(_ run:RunRecord,to task:WorkTask,completion:@escaping (Result<Void,Error>)->Void) {
-        performAction("Добавляем запрос и пересчитываем задачу…",operation: {db in
+        assign([run],to:task,completion:completion)
+    }
+    func assign(_ runs:[RunRecord],to task:WorkTask,completion:@escaping (Result<Void,Error>)->Void) {
+        guard !runs.isEmpty else {completion(.failure(MeterError("Выберите хотя бы один запуск")));return}
+        performAction("Добавляем запуски и пересчитываем задачу…",operation: {db in
             if try db.task(task.id)==nil {try db.saveTask(task)}
-            try db.bind(thread:run.thread,turn:run.id,task:task.id)
+            for run in runs {try db.bind(thread:run.thread,turn:run.id,task:task.id)}
         },completion:completion)
     }
     func merge(_ source:String,_ target:String,completion:@escaping (Result<Void,Error>)->Void) {
@@ -252,6 +279,7 @@ enum Format {
         return "\(value)"
     }
     static func rub(_ value:Double?) -> String {guard let value else{return "—"};return value.formatted(.currency(code:"RUB").locale(Locale(identifier:"ru_RU")).precision(.fractionLength(0...2)))}
+    static func usd(_ value:Double) -> String {value.formatted(.currency(code:"USD").locale(Locale(identifier:"en_US")).precision(.fractionLength(2)))}
     static func time(_ seconds:Double) -> String {
         let seconds=Int(max(0,seconds));if seconds<60{return "\(seconds) с"}
         if seconds<3600{return "\(seconds/60) мин"}

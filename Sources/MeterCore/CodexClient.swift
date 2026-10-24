@@ -112,7 +112,7 @@ public final class CodexClient {
             }
             lifetime=((usage["summary"] as? [String:Any])?["lifetimeTokens"] as? NSNumber)?.int64Value
         } catch { usageError="История аккаунта временно недоступна" }
-        return AccountSnapshot(accountKey:key,plan:account["planType"] as? String ?? "ChatGPT",buckets:buckets.sorted{$0.id=="codex" && $1.id != "codex"},daily:daily,lifetimeTokens:lifetime,usageError:usageError)
+        return AccountSnapshot(accountKey:key,plan:account["planType"] as? String ?? "ChatGPT",buckets:buckets.sorted{$0.id=="codex" && $1.id != "codex"},daily:daily,lifetimeTokens:lifetime,usageError:usageError).withQuotaEvidence(previous:try? db.snapshot())
     }
 }
 

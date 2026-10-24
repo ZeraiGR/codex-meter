@@ -55,6 +55,29 @@ import MeterCore
         check(!descendants(host).compactMap{$0 as? NSTextField}.contains{$0.placeholderString=="Какой результат объединяет эти запросы?"} && UIAccessibility.enabled(saveButton())==true,"Assigned request opens its existing task without a new task name")
         UIAccessibility.press(saveButton());settle()
         check((try? Database().tasks().count)==1,"Confirming existing assignment does not duplicate the task")
+        // A batch updates both bindings in one action and leaves unrelated runs alone.
+        let unrelated=RunRecord(id:"assign-unrelated",thread:"fixture",started:Date(),title:"Другой результат")
+        do {try Database().saveRun(unrelated)} catch {check(false,"Unrelated fixture saved")}
+        host=NSHostingView(rootView:AssignEditor(runs:[assigned,second]).environmentObject(store).background(Color(nsColor:.windowBackgroundColor)));window.contentView=host;settle()
+        check(UIAccessibility.enabled(saveButton())==false,"Mixed assigned and unassigned batch requires an explicit target")
+        if let search=descendants(host).compactMap({$0 as? NSSearchField}).first {
+            search.selectText(nil)
+            search.currentEditor()?.doCommand(by:#selector(NSResponder.moveDown(_:)));settle()
+        }
+        check(UIAccessibility.enabled(saveButton())==true,"Choosing an existing task enables batch confirmation")
+        UIAccessibility.press(saveButton());settle()
+        let batchRuns=(try? Database().runs()) ?? []
+        check(batchRuns.filter{$0.taskID==task.id}.count==2 && batchRuns.first{$0.id==unrelated.id}?.taskID==nil,"Batch dialog adds exactly the chosen runs to an existing task")
+        // Fail the second binding after the first has been written: the transaction must undo both task creation and bindings.
+        do {try Database().exec("CREATE TRIGGER reject_second BEFORE INSERT ON bindings WHEN NEW.turn='assign-two' BEGIN SELECT RAISE(ABORT,'fixture failure'); END")} catch {check(false,"Rollback trigger installed")}
+        let rejected=WorkTask(title:"Не должна сохраниться",kind:"test")
+        var failed=false
+        store.assign([assigned,second],to:rejected){if case .failure=$0 {failed=true}};settle()
+        check(failed && (try? Database().task(rejected.id))==nil && ((try? Database().runs()) ?? []).filter{$0.taskID==task.id}.count==2,"A failed batch rolls back the new task and all earlier bindings")
+        do {try Database().exec("DROP TRIGGER reject_second")} catch {check(false,"Rollback trigger removed")}
+        let newTask=WorkTask(title:"Общий результат",kind:"test",status:"paused")
+        store.assign([assigned,second],to:newTask){_ in};settle()
+        check(((try? Database().runs()) ?? []).filter{$0.taskID==newTask.id}.count==2 && ((try? Database().summaries()) ?? []).first{$0.id==task.id}?.runs.isEmpty==true,"Reassignment moves the batch and recalculates both tasks")
         return failures==0
     }
 }

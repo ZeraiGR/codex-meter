@@ -17,6 +17,9 @@ func XCTUnwrap<T>(_ value:T?) throws -> T { guard let value else{throw MeterErro
 
 let suite = MeterCoreTests()
 let checks: [(String, () throws -> Void)] = [
+    ("testUSDExchangeRateParsingConversionAndCache", suite.testUSDExchangeRateParsingConversionAndCache),
+    ("testUSDExchangeRateRejectsInvalidResponses", suite.testUSDExchangeRateRejectsInvalidResponses),
+    ("testUSDExchangeRateFreshnessAndMoscowDate", suite.testUSDExchangeRateFreshnessAndMoscowDate),
     ("testQuotaRefreshBackoffAndRecovery", suite.testQuotaRefreshBackoffAndRecovery),
     ("testCodexHTTPFailuresRemainDistinct", suite.testCodexHTTPFailuresRemainDistinct),
     ("testTaskSortingUsesNumbersAndKeepsUnknownCostsLast", suite.testTaskSortingUsesNumbersAndKeepsUnknownCostsLast),
@@ -32,6 +35,8 @@ let checks: [(String, () throws -> Void)] = [
     ("testMultiMonthPaymentDraftSuggestsOnlyOneFollowingMonth", suite.testMultiMonthPaymentDraftSuggestsOnlyOneFollowingMonth),
     ("testPaymentDraftHandlesShortMonthsAndLeapYearsWithoutDayDrift", suite.testPaymentDraftHandlesShortMonthsAndLeapYearsWithoutDayDrift),
 
+    ("testQuotaEvidenceLabelsMovingZeroAndKeepsRawDate", suite.testQuotaEvidenceLabelsMovingZeroAndKeepsRawDate),
+    ("testQuotaEvidenceReportsChangesWithoutClaimingExactReset", suite.testQuotaEvidenceReportsChangesWithoutClaimingExactReset),
     ("testQuotaTimeUsesResetWindowAndAdvancesWithoutQuotaChanges", suite.testQuotaTimeUsesResetWindowAndAdvancesWithoutQuotaChanges),
     ("testQuotaTimeDoesNotInventMissingOrExpiredWindows", suite.testQuotaTimeDoesNotInventMissingOrExpiredWindows),
     ("testProjectedTaskCostUsesUnroundedCoverageAndIncludesMeasuredPart", suite.testProjectedTaskCostUsesUnroundedCoverageAndIncludesMeasuredPart),
@@ -74,5 +79,6 @@ for (name, check) in checks {
     if failures==before {print("PASS \(name)")}
 }
 do {try await suite.testTranscriptSearchReadsAnswersAndInvalidatesCache();print("PASS testTranscriptSearchReadsAnswersAndInvalidatesCache")} catch {failures += 1;print("FAIL transcript search: \(error)")}
-print("\(checks.count+1) checks; \(failures) failures")
+do {try await suite.testUSDExchangeRateNetworkFailuresPreserveCache();print("PASS testUSDExchangeRateNetworkFailuresPreserveCache")} catch {failures += 1;print("FAIL exchange rate: \(error)")}
+print("\(checks.count+2) checks; \(failures) failures")
 exit(failures == 0 ? 0 : 1)

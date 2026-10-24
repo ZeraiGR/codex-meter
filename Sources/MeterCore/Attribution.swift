@@ -79,7 +79,7 @@ public enum AlertPolicy {
         return abs(x-y)<=90
     }
     public static func expiring(window:QuotaWindow,days:Int,minimumRemaining:Int,now:Date) -> Bool {
-        guard window.valid(at:now),let reset=window.resetDate,days>0 else{return false}
+        guard window.resetIsProvisional != true,window.valid(at:now),let reset=window.resetDate,days>0 else{return false}
         return reset.timeIntervalSince(now)<=Double(days)*86400 && window.remaining>=Double(minimumRemaining)
     }
     public static func pending(window:QuotaWindow,thresholds:[Int],sent:Set<Int>,now:Date) -> [Int] {

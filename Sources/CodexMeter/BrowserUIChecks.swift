@@ -81,6 +81,26 @@ import MeterCore
         check(table.numberOfRows==0 && table.visibleRect.height>=220,"No matches keeps a full-height list")
         typeQuery("")
         check(table.numberOfRows==4 && table.visibleRect.height>=220,"Clearing search restores clickable rows")
+        UIAccessibility.press(UIAccessibility.find(host,"run-selection-mode"));settle()
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Bulk assignment is disabled without selected runs")
+        UIAccessibility.press(UIAccessibility.find(host,"run-select-visible"));settle()
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==true,"Select shown runs enables bulk assignment")
+        UIAccessibility.capture(host,"run-bulk-selection")
+        typeQuery("неттакойфразы")
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Filtering out selected runs clears the batch")
+        typeQuery("")
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Clearing a filter does not silently reselect hidden runs")
+        table.scrollRowToVisible(1);settle()
+        func clickCheckbox() {
+            let point=table.convert(NSPoint(x:24,y:table.rect(ofRow:1).midY),to:nil)
+            let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
+            let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
+            NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
+        }
+        clickCheckbox()
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==true,"An individual checkbox selects a run")
+        clickCheckbox()
+        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Unchecking the last run disables assignment")
         return failures==0
     }
 }
