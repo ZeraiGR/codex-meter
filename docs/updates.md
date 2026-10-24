@@ -28,6 +28,12 @@ updater-enabled version once. Current releases are not Apple-notarized: first la
 may require per-app approval by macOS. Sparkle's Ed25519 signatures authenticate
 updates but are not a replacement for Apple Developer ID.
 
+Release notes are authored in Markdown in `releases/vX.Y.Z.md`. The signed feed
+preserves that text and sets `<description sparkle:format="markdown">`, supported
+by the pinned Sparkle 2.10.0. Headings, bullets and emphasis render in the native
+release window. `sparkle:descriptionFormat` is not the feed attribute: using it
+makes Sparkle fall back to HTML and collapse Markdown line breaks.
+
 ## Authentication and failure behavior
 
 - The updater uses HTTPS and a public key embedded in the installed app.
