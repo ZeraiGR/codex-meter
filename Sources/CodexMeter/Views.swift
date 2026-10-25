@@ -167,7 +167,8 @@ struct TasksView:View {
     @State private var filter=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_SEARCH"] ?? ""
     @State private var editing:WorkTask?
     @State private var assigning:RunAssignment?
-    @State private var checkedRuns=Set(ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"].map{[$0]} ?? [])
+    @State private var checkedRuns=Set<String>()
+    @State private var previewRun:String?=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"]
     @State private var showUnassigned=false
     @State private var mergeTarget=""
     @State private var taskSort:TaskSort = .recent
@@ -213,24 +214,31 @@ struct TasksView:View {
                         if !filter.isEmpty {Button {searchRevision += 1} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).help("Обновить поиск с учётом новых сообщений").disabled(searching)}
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary).frame(height:16)
                     if unavailable>0 && !filter.isEmpty {Text("Часть журналов недоступна; поиск по ним ограничен заголовками.").font(.caption2).foregroundStyle(MeterTheme.secondary)}
-                    List(selection:$checkedRuns) {
+                    List(selection:$previewRun) {
                         ForEach(runGroups,id:\.0) {date,runs in
                             Section(date.formatted(date:.abbreviated,time:.omitted)) {
                                 ForEach(runs) {run in
                                     HStack {
-                                        Toggle("Выбрать запуск",isOn:Binding(get:{checkedRuns.contains(run.id)},set:{value in
-                                                if value {checkedRuns.insert(run.id)} else {checkedRuns.remove(run.id)}
-                                            })).labelsHidden().toggleStyle(.checkbox).accessibilityLabel("Выбрать: \(run.title)")
+                                        Button {
+                                            if checkedRuns.contains(run.id) {checkedRuns.remove(run.id)} else {checkedRuns.insert(run.id)}
+                                        } label: {
+                                            Image(systemName:checkedRuns.contains(run.id) ? "checkmark.square.fill":"square")
+                                                .font(.system(size:18)).foregroundStyle(checkedRuns.contains(run.id) ? Color.accentColor:Color.secondary)
+                                                .frame(width:44,height:44).contentShape(Rectangle())
+                                        }.buttonStyle(.plain)
+                                            .accessibilityLabel("Отметить: \(run.title)")
+                                            .accessibilityValue(checkedRuns.contains(run.id) ? "Отмечен":"Не отмечен")
                                             .accessibilityIdentifier("run-check-\(run.id)")
-                                            .help("Выбрать запуск для назначения задаче")
+                                            .help("Изменить отметку только этого запуска")
                                         RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
                                     }.tag(run.id)
+                                    .listRowBackground(checkedRuns.contains(run.id) ? Color.accentColor.opacity(0.10):nil)
                                 }
                             }
                         }
                         if filteredRuns.count>limit {Button("Показать ещё 100"){limit += 100}.buttonStyle(.plain)}
                     }.listStyle(.inset).frame(minHeight:220,maxHeight:.infinity)
-                    .onExitCommand {checkedRuns=[]}
+                    .onExitCommand {previewRun=nil}
                     .overlay {
                         if filteredRuns.isEmpty && !searching {
                             VStack(spacing:8) {
@@ -255,8 +263,8 @@ struct TasksView:View {
                             Button {assigning=RunAssignment(runs:runsToAssign)} label:{Label("Назначить",systemImage:"folder.badge.plus")}
                                 .accessibilityIdentifier("run-assign-selected")
                             Button {checkedRuns=[]} label:{Image(systemName:"xmark")}
-                                .help("Снять выделение (Esc)").accessibilityLabel("Снять выделение")
-                                .accessibilityIdentifier("run-clear-selection").keyboardShortcut(.cancelAction)
+                                .help("Снять все отметки").accessibilityLabel("Снять выделение")
+                                .accessibilityIdentifier("run-clear-selection")
                         }
                     }.font(.caption).controlSize(.small).frame(height:28)
                 } else {
@@ -290,14 +298,14 @@ struct TasksView:View {
                         }
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                Text(showUnassigned ? "Флажок или ⌘-клик — выбор нескольких; ⇧-клик — диапазон.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {
-                if runsToAssign.count>1 {
-                    RunSelectionSummary(runs:runsToAssign,assign:{assigning=RunAssignment(runs:runsToAssign)})
-                } else if let run=runsToAssign.first {
+                if let run=store.runs.first(where:{$0.id==previewRun}) {
                     RunDetailView(run:run,assign:{assigning=RunAssignment(runs:[run])}).id(run.id)
+                } else if !runsToAssign.isEmpty {
+                    RunSelectionSummary(runs:runsToAssign,assign:{assigning=RunAssignment(runs:runsToAssign)})
                 } else {
                     ContentUnavailableView("Выберите запуск",systemImage:"bubble.left.and.bubble.right",description:Text("Справа появятся ваши запросы, ответы Codex и контекст переписки. После просмотра запуск можно назначить задаче."))
                 }
@@ -343,7 +351,7 @@ struct TasksView:View {
                                     filter="";onlyUnassigned=false
                                     if run.isService {includeService=true}
                                     limit=max(100,(candidates.firstIndex{$0.id==run.id} ?? 0)+1)
-                                    checkedRuns=[run.id];showUnassigned=true
+                                    previewRun=run.id;showUnassigned=true
                                 } label: {
                                     HStack{Text(run.title).lineLimit(2);Spacer();Image(systemName:"chevron.right")}
                                 }.buttonStyle(.bordered)
@@ -356,10 +364,12 @@ struct TasksView:View {
             }
             }.frame(minWidth:420,maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
         }.frame(maxWidth:.infinity,maxHeight:.infinity)
-        .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || !checkedRuns.isEmpty}}
+        .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || previewRun != nil}}
         .onChange(of:filter){_,_ in searchMatches=[]}
-        .onChange(of:shownRuns.map(\.id)){_,ids in checkedRuns.formIntersection(ids)}
-        .onChange(of:showUnassigned){_,show in if !show {checkedRuns=[]}}
+        .onChange(of:shownRuns.map(\.id)){_,ids in
+            checkedRuns.formIntersection(ids)
+            if let previewRun,!ids.contains(previewRun) {self.previewRun=nil}
+        }
         .onChange(of:selected){_,_ in DispatchQueue.main.async { mergeTarget="" }}
         .onChange(of:visibleTasks.map(\.id)) {_,ids in
             if let selected,!ids.contains(selected) {DispatchQueue.main.async { self.selected=nil }}
@@ -375,7 +385,7 @@ struct TasksView:View {
             } catch is CancellationError {} catch {searching=false}
         }
         .sheet(item:$editing){task in TaskEditor(task:task)}
-        .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns=[]})}
+        .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns.subtract(selection.runs.map(\.id))})}
     }
     func detail(_ label:String,_ value:String) -> some View {GridRow{Text(label).foregroundStyle(MeterTheme.secondary);Text(value).textSelection(.enabled)}}
     func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
