@@ -22,6 +22,7 @@ extension MeterCoreTests {
         log+=row("event_msg",["type":"task_started","turn_id":"one","model_context_window":200000])
         log+=row("turn_context",["turn_id":"one","model":"model-a-2026-01-01","effort":"high"])
         log+=row("event_msg",["type":"token_count","info":["total_token_usage":["input_tokens":100,"output_tokens":20]]])
+        log+=row("event_msg",["type":"thread_settings_applied","thread_settings":["service_tier":"default","model_provider_id":"next-provider"]])
         log+=row("turn_context",["turn_id":"one","model":"model-b","effort":"low"])
         log+=row("event_msg",["type":"token_count","info":["total_token_usage":["input_tokens":150,"output_tokens":30]]])
         let call:[String:Any]=["type":"item_completed","turn_id":"one","item":["type":"McpToolCall","id":"call","server":"docs","tool":"search","status":"completed","arguments":["token":"DO_NOT_STORE"],"result":"PRIVATE_RESULT"]]
@@ -40,6 +41,10 @@ extension MeterCoreTests {
         XCTAssertEqual(context.configurations.map(\.effort),["high","low"])
         XCTAssertEqual(context.configurations.map{$0.tokens.total},[120,60])
         XCTAssertEqual(context.configurations.first?.serviceTier,"priority")
+        XCTAssertEqual(context.configurations.last?.serviceTier,"priority")
+        XCTAssertEqual(context.configurations.last?.provider,"openai")
+        XCTAssertEqual(runs.first{$0.id=="two"}?.execution?.configurations.first?.serviceTier,"default")
+        XCTAssertEqual(runs.first{$0.id=="two"}?.execution?.configurations.first?.provider,"next-provider")
         XCTAssertEqual(context.configurations.first?.contextWindow,200000)
         XCTAssertEqual(context.calls.count,2);XCTAssertEqual(context.calls.first?.server,"docs")
         XCTAssertEqual(context.calls.last?.status,"failed");XCTAssertEqual(context.calls.last?.duration,1.5)

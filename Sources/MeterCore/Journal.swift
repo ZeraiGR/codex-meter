@@ -13,6 +13,7 @@ public enum Journal {
         var session=ExecutionContext(),configuration=ExecutionConfiguration()
         var contextTurn:String?
         var pendingContext=false
+        var nextProvider:String?,nextServiceTier:String?
         // Only complete JSONL lines: a writer can be in the middle of its final line.
         let lines=data.split(separator:10,omittingEmptySubsequences:false)
         for line in lines.dropLast() {
@@ -22,7 +23,7 @@ public enum Journal {
             if type=="session_meta" {
                 thread=p["id"] as? String ?? thread
                 session=ExecutionContext(originator:p["originator"] as? String,clientVersion:p["cli_version"] as? String,source:p["source"] as? String)
-                configuration.provider=p["model_provider"] as? String
+                nextProvider=p["model_provider"] as? String
                 if let source=p["source"] as? [String:Any],let sub=source["subagent"] as? [String:Any],let spawn=sub["thread_spawn"] as? [String:Any] { parent=spawn["parent_thread_id"] as? String }
             } else if type=="turn_context" {
                 pendingContext=active==nil && p["turn_id"]==nil
@@ -35,8 +36,8 @@ public enum Journal {
                 switch p["type"] as? String {
                 case "thread_settings_applied":
                     if let settings=p["thread_settings"] as? [String:Any] {
-                        configuration.provider=settings["model_provider_id"] as? String ?? configuration.provider
-                        configuration.serviceTier=settings["service_tier"] as? String
+                        nextProvider=settings["model_provider_id"] as? String ?? nextProvider
+                        nextServiceTier=settings["service_tier"] as? String
                     }
                 case "task_started":
                     guard let id=p["turn_id"] as? String else { continue }
@@ -45,6 +46,7 @@ public enum Journal {
                     active=id
                     if contextTurn != id && !pendingContext {model="";effort="";configuration.model="";configuration.effort=""}
                     pendingContext=false
+                    configuration.provider=nextProvider;configuration.serviceTier=nextServiceTier
                     configuration.contextWindow=p["model_context_window"] as? Int
                     if runs[id]==nil {
                         var run=RunRecord(id:id,thread:thread,parentThread:parent,started:date(p["started_at"]) ?? timestamp,model:model,effort:effort)
