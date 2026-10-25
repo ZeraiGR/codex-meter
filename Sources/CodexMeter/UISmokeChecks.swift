@@ -46,6 +46,9 @@ import SwiftUI
         navigation.showDashboard {}
         settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "Existing dashboard comes forward on repeated navigation")
+        // Drain showDashboard's deferred focus before starting a different gesture.
+        // A ready key window alone does not mean that callback has already run.
+        settle()
         dashboard.miniaturize(nil); settle(until: { dashboard.isMiniaturized })
         guard dashboard.isMiniaturized else {check(false,"Dashboard reaches minimized state before restoration");return false}
         panel.makeKeyAndOrderFront(nil)
