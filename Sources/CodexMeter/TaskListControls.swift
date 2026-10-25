@@ -34,6 +34,7 @@ struct TaskListControls:View {
                             Text("Ожидает").tag("paused")
                             Text("Завершена").tag("completed")
                             Text("Отменена").tag("cancelled")
+                            Text("Не удалась").tag("failed")
                         }.accessibilityIdentifier("task-list-status")
                         VStack(alignment:.leading,spacing:5) {
                             Text("Тип содержит").font(.caption)
