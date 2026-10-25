@@ -191,3 +191,5 @@ Telegram API traffic can use a dedicated SSH tunnel through a VPS while Codex ke
 Reset dates come from the latest server response. Zero-use moving deadlines are
 labelled provisional, and weekly deadline changes include the previous date and
 observation time. An expired timestamp alone does not prove a quota reset.
+
+Tasks support independent checkboxes, bulk status changes and atomic merging into an existing task. See [the task guide](docs/usage.ru.md#несколько-задач).

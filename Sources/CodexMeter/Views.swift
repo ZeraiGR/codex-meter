@@ -168,6 +168,8 @@ struct TasksView:View {
     @State private var editing:WorkTask?
     @State private var assigning:RunAssignment?
     @State private var checkedRuns=Set<String>()
+    @State private var checkedTasks=Set<String>()
+    @State private var taskBatch:TaskBatchRequest?
     @State private var previewRun:String?=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"]
     @State private var showUnassigned=false
     @State private var mergeTarget=""
@@ -190,6 +192,7 @@ struct TasksView:View {
         Dictionary(grouping:shownRuns,by:{Calendar.current.startOfDay(for:$0.started)}).sorted{$0.key>$1.key}.map{($0.key,$0.value)}
     }
     var visibleTasks:[TaskSummary] {TaskListQuery.apply(store.tasks,query:filter,status:taskStatus,kind:taskKind,sort:taskSort,ascending:taskAscending)}
+    var tasksToActOn:[TaskSummary] {visibleTasks.filter{checkedTasks.contains($0.id)}}
     var selectedTask:TaskSummary? {store.tasks.first{$0.id==selected}}
     var runsToAssign:[RunRecord] {shownRuns.filter{checkedRuns.contains($0.id)}}
     var body:some View {
@@ -277,15 +280,20 @@ struct TasksView:View {
                     TaskListControls(sort:$taskSort,ascending:$taskAscending,status:$taskStatus,kind:$taskKind)
                     List(selection:$selected) {
                         ForEach(visibleTasks) {summary in
-                            VStack(alignment:.leading,spacing:6) {
-                                Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
-                                HStack{Text(summary.task.kind).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
-                                HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
-                                if let dollars=store.exchangeRate?.dollars(for:summary.rubles ?? summary.measuredRubles) {
-                                    Text("≈ "+Format.usd(dollars)+(summary.rubles == nil ? " учтено":"")+((store.exchangeRate?.isStale() == true || store.exchangeRateIssue != nil) ? " · сохранённый курс":""))
-                                        .font(.caption).foregroundStyle(MeterTheme.secondary).monospacedDigit()
+                            HStack(spacing:4) {
+                                TaskCheckButton(title:summary.task.title,id:summary.id,checked:checkedTasks.contains(summary.id)) {
+                                    if checkedTasks.contains(summary.id) {checkedTasks.remove(summary.id)} else {checkedTasks.insert(summary.id)}
                                 }
-                            }.padding(.vertical,6).textSelection(.disabled).tag(summary.id)
+                                VStack(alignment:.leading,spacing:6) {
+                                    Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
+                                    HStack{Text(summary.task.kind).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
+                                    HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
+                                    if let dollars=store.exchangeRate?.dollars(for:summary.rubles ?? summary.measuredRubles) {
+                                        Text("≈ "+Format.usd(dollars)+(summary.rubles == nil ? " учтено":"")+((store.exchangeRate?.isStale() == true || store.exchangeRateIssue != nil) ? " · сохранённый курс":""))
+                                            .font(.caption).foregroundStyle(MeterTheme.secondary).monospacedDigit()
+                                    }
+                                }.padding(.vertical,6).textSelection(.disabled)
+                            }.tag(summary.id)
                         }
                     }.listStyle(.inset).frame(minHeight:220,maxHeight:.infinity).accessibilityIdentifier("task-list")
                     .overlay {
@@ -296,6 +304,11 @@ struct TasksView:View {
                             }.frame(maxWidth:.infinity,maxHeight:.infinity)
                         }
                     }
+                    TaskBatchBar(count:tasksToActOn.count,total:visibleTasks.count,busy:store.isPerformingAction,selectAll:{
+                        checkedTasks=tasksToActOn.count==visibleTasks.count ? []:Set(visibleTasks.map(\.id))
+                    },clear:{checkedTasks=[]},action:{kind in
+                        taskBatch=TaskBatchRequest(tasks:tasksToActOn,kind:kind)
+                    })
                     HStack {
                         Text("Найдено: \(visibleTasks.count) из \(store.tasks.count)")
                         Spacer()
@@ -304,7 +317,7 @@ struct TasksView:View {
                         }
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Флажки выбирают задачи. Открытие карточки сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {
@@ -365,6 +378,7 @@ struct TasksView:View {
         }
         .onChange(of:selected){_,_ in DispatchQueue.main.async { mergeTarget="" }}
         .onChange(of:visibleTasks.map(\.id)) {_,ids in
+            checkedTasks.formIntersection(ids)
             if let selected,!ids.contains(selected) {DispatchQueue.main.async { self.selected=nil }}
         }
         .task(id:RunSearchRequest(query:filter,unassigned:onlyUnassigned,service:includeService,showRuns:showUnassigned,revision:searchRevision)) {
@@ -377,6 +391,10 @@ struct TasksView:View {
                 try Task.checkCancellation();searchMatches=result.matches;unavailable=result.unavailable;searching=false
             } catch is CancellationError {} catch {searching=false}
         }
+        .sheet(item:$taskBatch){request in TaskBatchEditor(request:request,onSaved:{target in
+            checkedTasks.subtract(request.tasks.map(\.id))
+            if let target {selected=target}
+        })}
         .sheet(item:$editing){task in TaskEditor(task:task)}
         .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns.subtract(selection.runs.map(\.id))})}
     }
