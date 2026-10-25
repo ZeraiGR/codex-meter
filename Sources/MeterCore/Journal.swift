@@ -10,6 +10,7 @@ public enum Journal {
         func date(_ value:Any?) -> Date? {guard let value=value as? String else{return nil};return precise.date(from:value) ?? whole.date(from:value)}
         var thread=fallbackThread,parent:String?,active:String?,model="",effort=""
         var baseline=TokenCount(),runs:[String:RunRecord]=[:]
+        var session=ExecutionContext(),configuration=ExecutionConfiguration()
         // Only complete JSONL lines: a writer can be in the middle of its final line.
         let lines=data.split(separator:10,omittingEmptySubsequences:false)
         for line in lines.dropLast() {
@@ -18,18 +19,40 @@ public enum Journal {
             let type=row["type"] as? String
             if type=="session_meta" {
                 thread=p["id"] as? String ?? thread
+                session=ExecutionContext(originator:p["originator"] as? String,clientVersion:p["cli_version"] as? String,source:p["source"] as? String)
+                configuration.provider=p["model_provider"] as? String
                 if let source=p["source"] as? [String:Any],let sub=source["subagent"] as? [String:Any],let spawn=sub["thread_spawn"] as? [String:Any] { parent=spawn["parent_thread_id"] as? String }
             } else if type=="turn_context" {
                 model=p["model"] as? String ?? model;effort=p["effort"] as? String ?? effort
-                if let id=active,var run=runs[id] { run.model=model;run.effort=effort;runs[id]=run }
+                configuration.model=model;configuration.effort=effort
+                if let id=active,var run=runs[id] { run.model=model;run.effort=effort;run.execution?.record(configuration);runs[id]=run }
             } else if type=="event_msg" {
                 switch p["type"] as? String {
+                case "thread_settings_applied":
+                    if let settings=p["thread_settings"] as? [String:Any] {
+                        configuration.provider=settings["model_provider_id"] as? String ?? configuration.provider
+                        configuration.serviceTier=settings["service_tier"] as? String
+                    }
                 case "task_started":
                     guard let id=p["turn_id"] as? String else { continue }
                     // A new turn closes an interrupted predecessor, not its user task.
                     if let previous=active,var old=runs[previous],old.ended==nil { old.ended=timestamp;old.outcome="interrupted";runs[previous]=old }
                     active=id
-                    if runs[id]==nil { runs[id]=RunRecord(id:id,thread:thread,parentThread:parent,started:date(p["started_at"]) ?? timestamp,model:model,effort:effort) }
+                    configuration.contextWindow=p["model_context_window"] as? Int
+                    if runs[id]==nil {
+                        var run=RunRecord(id:id,thread:thread,parentThread:parent,started:date(p["started_at"]) ?? timestamp,model:model,effort:effort)
+                        run.execution=session;runs[id]=run
+                    }
+                case "item_completed":
+                    if let id=p["turn_id"] as? String ?? active,var run=runs[id],let item=p["item"] as? [String:Any],let callID=item["id"] as? String {
+                        let kind=item["type"] as? String
+                        if kind=="McpToolCall",let server=item["server"] as? String,let tool=item["tool"] as? String {
+                            run.execution?.record(ExecutionToolCall(id:callID,name:tool,server:server,status:item["status"] as? String ?? "unknown"))
+                        } else if let kind,["CommandExecution","FileChange","ImageView"].contains(kind) {
+                            run.execution?.record(ExecutionToolCall(id:callID,name:kind,status:item["status"] as? String ?? "completed"))
+                        }
+                        runs[id]=run
+                    }
                 case "user_message":
                     if let id=active,var run=runs[id],let message=p["message"] as? String,run.title=="Запуск Codex" {
                         let first=message.split(separator:"\n").first.map(String.init) ?? "Запуск Codex"
@@ -40,6 +63,7 @@ public enum Journal {
                     let next=tokens(total),delta=next.delta(from:baseline);baseline=next
                     if let id=active,var run=runs[id],delta.total>0 {
                         run.tokens=run.tokens+delta;run.tokenEvents.append(TokenEvent(date:timestamp,tokens:delta));runs[id]=run
+                        runs[id]?.execution?.record(configuration);runs[id]?.execution?.add(delta)
                     }
                 case "task_complete":
                     let id=p["turn_id"] as? String ?? active
@@ -70,7 +94,7 @@ public enum Journal {
             guard let enumerator=FileManager.default.enumerator(at:root.appendingPathComponent(subdir),includingPropertiesForKeys:[.contentModificationDateKey,.fileSizeKey],options:[.skipsHiddenFiles]) else { continue }
             for case let path as URL in enumerator where path.pathExtension=="jsonl" {
                 let values=try path.resourceValues(forKeys:[.contentModificationDateKey,.fileSizeKey])
-                let fingerprint="transcript-v2:\(values.fileSize ?? 0):\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
+                let fingerprint="execution-v1:\(values.fileSize ?? 0):\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
                 let key="file:\(path.path)"
                 guard try db.value(key) != fingerprint else { continue }
                 let parsed=parse(try Data(contentsOf:path,options:.mappedIfSafe),fallbackThread:path.deletingPathExtension().lastPathComponent)

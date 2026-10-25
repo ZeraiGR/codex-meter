@@ -162,6 +162,7 @@ public struct RunRecord: Codable, Identifiable {
     public var category: String?
     public var preview: String?
     public var messageCount: Int?
+    public var execution: ExecutionContext?
     public var projectName: String { workingDirectory.map { URL(fileURLWithPath:$0).lastPathComponent } ?? "Проект неизвестен" }
     public var isService: Bool { category == "service" }
     public var categoryLabel: String { isService ? "Служебная проверка":category == "agent" ? "Вспомогательный агент":"Переписка" }

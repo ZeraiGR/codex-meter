@@ -17,6 +17,8 @@ func XCTUnwrap<T>(_ value:T?) throws -> T { guard let value else{throw MeterErro
 
 let suite = MeterCoreTests()
 let checks: [(String, () throws -> Void)] = [
+    ("testExecutionContextTracksChangesAndCompletedToolsWithoutSecrets", suite.testExecutionContextTracksChangesAndCompletedToolsWithoutSecrets),
+    ("testExecutionContextBackfillsOldRunsWithoutChangingBindings", suite.testExecutionContextBackfillsOldRunsWithoutChangingBindings),
     ("testUSDExchangeRateParsingConversionAndCache", suite.testUSDExchangeRateParsingConversionAndCache),
     ("testUSDExchangeRateRejectsInvalidResponses", suite.testUSDExchangeRateRejectsInvalidResponses),
     ("testUSDExchangeRateFreshnessAndMoscowDate", suite.testUSDExchangeRateFreshnessAndMoscowDate),
