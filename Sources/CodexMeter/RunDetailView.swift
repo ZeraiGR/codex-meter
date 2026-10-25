@@ -9,7 +9,7 @@ struct RunSelectionSummary:View {
             VStack(alignment:.leading,spacing:18) {
                 Label("Выбрано запусков: \(runs.count)",systemImage:"checkmark.square.stack")
                     .font(.title2.weight(.semibold))
-                Text("Назначьте выбранные запуски одной существующей или новой задаче. Для просмотра переписки нажмите на одну строку без ⌘ или ⇧.")
+                Text("Назначьте выбранные запуски одной существующей или новой задаче. Клик по карточке откроет переписку и сохранит все отметки.")
                     .foregroundStyle(MeterTheme.secondary)
                 Button(action:assign){Label("Назначить задачу",systemImage:"folder.badge.plus")}
                     .accessibilityIdentifier("run-summary-assign")
