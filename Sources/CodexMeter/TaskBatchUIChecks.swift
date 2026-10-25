@@ -17,7 +17,10 @@ import MeterCore
             window.isReleasedWhenClosed=false;defer {window.orderOut(nil)}
             var failures=0,saved=false
             func check(_ ok:Bool,_ name:String){print("\(ok ? "PASS":"FAIL") \(name)");if !ok {failures += 1}}
-            func settle(_ seconds:Double=0.3){RunLoop.main.run(until:Date().addingTimeInterval(seconds));NSApp.updateWindows()}
+            func settle(_ seconds:Double=0.3){
+                let deadline=Date().addingTimeInterval(seconds)
+                while Date()<deadline {if let event=NSApp.nextEvent(matching:.any,until:deadline,inMode:.default,dequeue:true){NSApp.sendEvent(event)};NSApp.updateWindows()}
+            }
             func present(_ kind:TaskBatchKind)->NSView {
                 let host=NSHostingView(rootView:TaskBatchEditor(request:TaskBatchRequest(tasks:tasks,kind:kind),onSaved:{_ in saved=true}).environmentObject(store).background(MeterTheme.background))
                 window.contentView=host;window.makeKeyAndOrderFront(nil);settle();return host

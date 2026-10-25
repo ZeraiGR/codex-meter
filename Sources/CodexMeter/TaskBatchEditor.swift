@@ -38,7 +38,8 @@ struct TaskBatchBar:View {
             Button(action:selectAll){Image(systemName:count==0 ? "square":count==total ? "checkmark.square.fill":"minus.square.fill")}
                 .accessibilityLabel("Выбрать показанные задачи").accessibilityIdentifier("task-select-visible")
                 .help("Выбрать или снять выбор показанных задач (\(total))").disabled(total==0)
-            Text("Выбрано: \(count)").monospacedDigit().accessibilityIdentifier("task-selection-count")
+            // Recreate the static AX text so VoiceOver receives the updated count.
+            Text("Выбрано: \(count)").monospacedDigit().accessibilityIdentifier("task-selection-count").id(count)
             Spacer(minLength:0)
             if count>0 {
                 Menu {
