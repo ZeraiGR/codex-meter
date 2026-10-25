@@ -25,7 +25,7 @@ import MeterCore
         let host=NSHostingView(rootView:DashboardView().environmentObject(store))
         window.contentView=host;window.makeKeyAndOrderFront(nil);settle()
         func text()->String {UIAccessibility.nodes(host).compactMap{UIAccessibility.value($0,"accessibilityValue") as? String}.joined(separator:" ")}
-        check(UIAccessibility.find(host,"task-expense-details") != nil && UIAccessibility.find(host,"task-weekly-quota")==nil,"Task overview keeps expense details collapsed")
+        check(UIAccessibility.find(host,"task-expense-details") != nil && !text().contains("Измерения покрывают") && !text().contains("Из него reasoning"),"Task overview keeps expense details collapsed")
         check(!text().contains("Следующая похожая задача") && text().contains(run.model) && text().contains("high"),"Task overview shows model and effort without the next-task forecast")
         UIAccessibility.capture(host,"task-overview-context-light")
         host.appearance=NSAppearance(named:.darkAqua);settle();UIAccessibility.capture(host,"task-overview-context-dark")
