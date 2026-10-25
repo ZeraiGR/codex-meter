@@ -268,7 +268,6 @@ import MeterCore
             }
         } catch {self.error="Уведомления: \(error.localizedDescription)"}
     }
-    func forecast(_ kind:String) -> Forecast {Predictor.estimate(kind:kind,history:tasks,snapshot:snapshot,payment:currentPayment)}
 }
 
 enum Format {
