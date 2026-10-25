@@ -222,8 +222,15 @@ struct TasksView:View {
                                         Button {
                                             if checkedRuns.contains(run.id) {checkedRuns.remove(run.id)} else {checkedRuns.insert(run.id)}
                                         } label: {
-                                            Image(systemName:checkedRuns.contains(run.id) ? "checkmark.square.fill":"square")
-                                                .font(.system(size:18)).foregroundStyle(checkedRuns.contains(run.id) ? Color.accentColor:Color.secondary)
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius:4)
+                                                    .fill(checkedRuns.contains(run.id) ? Color(red:0,green:0.32,blue:0.72):MeterTheme.background)
+                                                RoundedRectangle(cornerRadius:4)
+                                                    .strokeBorder(checkedRuns.contains(run.id) ? Color.white:MeterTheme.secondary,lineWidth:1.5)
+                                                if checkedRuns.contains(run.id) {
+                                                    Image(systemName:"checkmark").font(.system(size:12,weight:.bold)).foregroundStyle(.white)
+                                                }
+                                            }.frame(width:20,height:20)
                                                 .frame(width:44,height:44).contentShape(Rectangle())
                                         }.buttonStyle(.plain)
                                             .accessibilityLabel("Отметить: \(run.title)")
@@ -232,7 +239,6 @@ struct TasksView:View {
                                             .help("Изменить отметку только этого запуска")
                                         RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
                                     }.tag(run.id)
-                                    .listRowBackground(checkedRuns.contains(run.id) ? Color.accentColor.opacity(0.10):nil)
                                 }
                             }
                         }
