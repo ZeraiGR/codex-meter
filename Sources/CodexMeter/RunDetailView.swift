@@ -1,6 +1,31 @@
 import SwiftUI
 import MeterCore
 
+struct RunSelectionSummary:View {
+    let runs:[RunRecord]
+    let assign:()->Void
+    var body:some View {
+        ScrollView {
+            VStack(alignment:.leading,spacing:18) {
+                Label("Выбрано запусков: \(runs.count)",systemImage:"checkmark.square.stack")
+                    .font(.title2.weight(.semibold))
+                Text("Назначьте выбранные запуски одной существующей или новой задаче. Для просмотра переписки нажмите на одну строку без ⌘ или ⇧.")
+                    .foregroundStyle(MeterTheme.secondary)
+                Button(action:assign){Label("Назначить задачу",systemImage:"folder.badge.plus")}
+                    .accessibilityIdentifier("run-summary-assign")
+                Divider()
+                ForEach(runs) {run in
+                    VStack(alignment:.leading,spacing:4) {
+                        Text(run.title).font(.callout.weight(.medium)).lineLimit(2)
+                        Text(run.projectName+" · "+run.started.formatted(date:.abbreviated,time:.shortened))
+                            .font(.caption).foregroundStyle(MeterTheme.secondary)
+                    }
+                }
+            }.padding(22).frame(maxWidth:.infinity,alignment:.leading)
+        }.accessibilityIdentifier("run-selection-summary")
+    }
+}
+
 struct RunListRow:View {
     let run:RunRecord
     let taskTitle:String?

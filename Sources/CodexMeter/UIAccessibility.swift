@@ -7,9 +7,16 @@ import AppKit
         node.responds(to:NSSelectorFromString(key)) ? node.value(forKey:key):nil
     }
     static func nodes(_ object:Any)->[NSObject] {
-        guard let node=object as? NSObject else{return []}
-        let children=(value(node,"accessibilityChildren") as? [Any]) ?? (node as? NSView)?.subviews ?? []
-        return [node]+children.flatMap{nodes($0)}
+        var visited=Set<ObjectIdentifier>()
+        func walk(_ object:Any)->[NSObject] {
+            guard let node=object as? NSObject,visited.insert(ObjectIdentifier(node)).inserted else{return []}
+            // Native list row containers can be absent from accessibilityChildren.
+            // Visit live subviews as well as SwiftUI's virtual accessibility elements.
+            let views=(node as? NSView)?.subviews ?? []
+            let children=(value(node,"accessibilityChildren") as? [Any]) ?? []
+            return [node]+views.flatMap{walk($0)}+children.flatMap{walk($0)}
+        }
+        return walk(object)
     }
     static func find(_ root:Any,_ id:String)->NSObject? {
         nodes(root).first{value($0,"accessibilityIdentifier") as? String==id}

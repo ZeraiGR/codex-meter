@@ -42,10 +42,11 @@ import MeterCore
         let host=NSHostingView(rootView:DashboardView().environmentObject(store).environment(\.locale,Locale(identifier:"ru_RU")))
         window.contentView=host;window.makeKeyAndOrderFront(nil);settle()
         let tables=descendants(host).compactMap{$0 as? NSTableView}
-        guard let table=tables.first else {check(false,"Native run list exists");return false}
+        guard tables.first != nil else {check(false,"Native run list exists");return false}
+        var table:NSTableView {descendants(host).compactMap{$0 as? NSTableView}.first!}
         check(table.visibleRect.height>=220,"Unselected run list occupies usable height")
         check((1..<table.numberOfRows).allSatisfy{table.rect(ofRow:$0).height>=100},"Long titles and metadata have separate row space")
-        let search=descendants(host).compactMap{$0 as? NSTextField}.first{$0.placeholderString=="Поиск по запросам и ответам"}
+        var search:NSTextField? {descendants(host).compactMap{$0 as? NSTextField}.first{$0.placeholderString=="Поиск по запросам и ответам"}}
         func typeQuery(_ value:String) {
             search?.selectText(nil)
             if let editor=search?.currentEditor() as? NSTextView {
@@ -81,26 +82,108 @@ import MeterCore
         check(table.numberOfRows==0 && table.visibleRect.height>=220,"No matches keeps a full-height list")
         typeQuery("")
         check(table.numberOfRows==4 && table.visibleRect.height>=220,"Clearing search restores clickable rows")
-        UIAccessibility.press(UIAccessibility.find(host,"run-selection-mode"));settle()
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Bulk assignment is disabled without selected runs")
-        UIAccessibility.press(UIAccessibility.find(host,"run-select-visible"));settle()
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==true,"Select shown runs enables bulk assignment")
+        func selectedCount()->Int {table.selectedRowIndexes.count}
+        func clickRow(_ row:Int,_ flags:NSEvent.ModifierFlags=[]) {
+            NSApp.activate(ignoringOtherApps:true);window.makeKeyAndOrderFront(nil);window.makeFirstResponder(table)
+            table.scrollRowToVisible(row);settle()
+            let point=table.convert(NSPoint(x:table.bounds.midX,y:table.rect(ofRow:row).midY),to:nil)
+            let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
+            let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:flags,timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
+            NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
+        }
+        func clickControl(_ id:String) {
+            guard let control=UIAccessibility.find(host,id) else {check(false,"Visible control exists: "+id);return}
+            NSApp.activate(ignoringOtherApps:true);window.makeKeyAndOrderFront(nil)
+            let frame=UIAccessibility.frame(control)
+            let point=window.convertPoint(fromScreen:NSPoint(x:frame.midX,y:frame.midY))
+            let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
+            let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
+            NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
+        }
+        func assignmentCount()->String? {
+            clickControl("run-assign-selected")
+            guard let content=window.attachedSheet?.contentView else {return nil}
+            let count=UIAccessibility.find(content,"assignment-selection-count")
+                .flatMap{UIAccessibility.value($0,"accessibilityValue") as? String}
+            UIAccessibility.press(UIAccessibility.find(content,"assignment-cancel"));settle()
+            return count
+        }
+        func key(_ text:String,_ code:UInt16,_ flags:NSEvent.ModifierFlags=[]) {
+            window.makeFirstResponder(table)
+            let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:code)!
+            if !window.performKeyEquivalent(with:event) {NSApp.sendEvent(event)};settle()
+        }
+        check(UIAccessibility.find(host,"run-selection-mode")==nil,"Selection needs no separate mode button")
+        let idleHeight=table.visibleRect.height
+        UIAccessibility.capture(host,"run-selection-idle")
+        clickRow(1);clickRow(3,.command)
+        check(selectedCount()==2,"Command click selects two nonadjacent runs")
+        check(UIAccessibility.find(host,"run-selection-summary") != nil,"Multiple selection shows a group summary instead of an unrelated transcript")
+        clickControl("run-assign-selected")
+        if let sheet=window.attachedSheet,let content=sheet.contentView {
+            let count=UIAccessibility.find(content,"assignment-selection-count")
+            check(count.flatMap{UIAccessibility.value($0,"accessibilityValue") as? String}=="Выбрано запусков: 2","Contextual assignment receives exactly the two selected runs")
+            UIAccessibility.press(UIAccessibility.find(content,"assignment-cancel"));settle()
+            check(UIAccessibility.find(host,"run-selection-summary") != nil,"Cancelling assignment preserves the selected group")
+        } else {check(false,"Contextual action opens the assignment sheet")}
+        clickRow(3,.command)
+        check(selectedCount()==1,"Command clicking a selected run removes it")
+        clickRow(1);clickRow(3,.shift)
+        check(selectedCount()==3,"Shift click selects the contiguous range")
+        check(abs(table.visibleRect.height-idleHeight)<1,"Contextual actions do not shrink or move the run list")
         UIAccessibility.capture(host,"run-bulk-selection")
-        typeQuery("неттакойфразы")
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Filtering out selected runs clears the batch")
-        typeQuery("")
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Clearing a filter does not silently reselect hidden runs")
+        window.setContentSize(NSSize(width:980,height:740));table.scrollRowToVisible(1);settle()
+        UIAccessibility.capture(host,"run-bulk-selection-wide")
+        host.appearance=NSAppearance(named:.darkAqua);settle()
+        UIAccessibility.capture(host,"run-bulk-selection-dark")
+        host.appearance=nil;window.setContentSize(NSSize(width:840,height:620));settle()
+        key("\u{1b}",53)
+        UIAccessibility.capture(host,"run-after-escape")
+        check(UIAccessibility.find(host,"run-assign-selected")==nil && UIAccessibility.find(host,"run-selection-summary")==nil,"Escape clears selection and hides bulk actions")
+        clickRow(1);key(String(UnicodeScalar(NSDownArrowFunctionKey)!),125,.shift)
+        check(selectedCount()==2,"Shift Down extends native selection with the keyboard")
+        clickControl("run-clear-selection")
         table.scrollRowToVisible(1);settle()
         func clickCheckbox() {
-            let point=table.convert(NSPoint(x:24,y:table.rect(ofRow:1).midY),to:nil)
+            guard let checkbox=UIAccessibility.find(host,"run-check-ui-1") else {check(false,"Accessible row checkbox exists");return}
+            let frame=UIAccessibility.frame(checkbox)
+            let point=window.convertPoint(fromScreen:NSPoint(x:frame.midX,y:frame.midY))
             let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
             let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
             NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
         }
         clickCheckbox()
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==true,"An individual checkbox selects a run")
+        check(selectedCount()==1 && UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected")),"A checkbox click directly selects a run without entering a mode")
         clickCheckbox()
-        check(UIAccessibility.enabled(UIAccessibility.find(host,"run-assign-selected"))==false,"Unchecking the last run disables assignment")
+        check(selectedCount()==0 && UIAccessibility.find(host,"run-assign-selected")==nil,"Unchecking the last run clears native selection and actions")
+        clickControl("run-select-visible")
+        UIAccessibility.capture(host,"run-select-all")
+        check(assignmentCount()=="Выбрано запусков: 3","Select shown icon assigns all three runs")
+        store.runs=runs;settle()
+        check(assignmentCount()=="Выбрано запусков: 3","History refresh preserves the selected run IDs")
+        typeQuery("неттакойфразы")
+        check(UIAccessibility.find(host,"run-assign-selected")==nil,"Filtering out selected runs clears the batch")
+        typeQuery("")
+        check(selectedCount()==0,"Clearing a filter does not silently reselect hidden runs")
+        window.makeFirstResponder(table);table.selectAll(nil);settle()
+        check(selectedCount()==3,"Native Select All action selects the run list")
+        typeQuery("пример 1")
+        check(UIAccessibility.value(UIAccessibility.find(host,"run-selection-count")!,"accessibilityValue") as? String=="Выбрано: 1","Search keeps only matching selected IDs")
+        search?.selectText(nil);NSApp.sendAction(#selector(NSText.selectAll(_:)),to:nil,from:nil);settle()
+        check((search?.currentEditor() as? NSTextView)?.selectedRange().length==8,"Select All in search selects text without changing run selection")
+        typeQuery("");clickControl("run-clear-selection")
+        store.runs=runs+(4...105).map {RunRecord(id:"ui-\($0)",thread:"ui",started:runs[0].started,title:"Дополнительный запуск \($0)")};settle()
+        UIAccessibility.capture(host,"run-page-test")
+        clickControl("run-select-visible")
+        UIAccessibility.capture(host,"run-page-selected")
+        clickControl("run-assign-selected")
+        if let sheet=window.attachedSheet,let content=sheet.contentView {
+            let count=UIAccessibility.find(content,"assignment-selection-count")
+            check(count.flatMap{UIAccessibility.value($0,"accessibilityValue") as? String}=="Выбрано запусков: 100","Select shown assigns only the 100 loaded runs out of 105")
+            UIAccessibility.press(UIAccessibility.find(content,"assignment-cancel"));settle()
+        } else {check(false,"Loaded selection opens the assignment sheet")}
+        clickControl("run-select-visible")
+        check(UIAccessibility.find(host,"run-assign-selected")==nil,"Select shown icon toggles a full selection off")
         return failures==0
     }
 }
