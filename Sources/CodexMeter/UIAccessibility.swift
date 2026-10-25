@@ -33,4 +33,16 @@ import AppKit
         }
     }
     static func press(_ node:NSObject?) {guard let node else{return};_ = (node as AnyObject).accessibilityPerformPress?()}
+    static func toggleDisclosure(_ node:NSObject?,in window:NSWindow) {
+        guard let node else{return}
+        let control=nodes(node).first { value($0,"accessibilityRole") as? String=="AXButton" } ?? node
+        NSApp.activate(ignoringOtherApps:true)
+        RunLoop.main.run(until:Date().addingTimeInterval(0.2))
+        window.makeKeyAndOrderFront(nil)
+        let bounds=frame(control)
+        let point=window.convertPoint(fromScreen:NSPoint(x:bounds.midX,y:bounds.midY))
+        let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
+        let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
+        NSApp.postEvent(up,atStart:true);window.sendEvent(down)
+    }
 }

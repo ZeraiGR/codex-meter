@@ -61,6 +61,7 @@ struct RunDetailView:View {
     @State private var entireThread=false
     @State private var find=""
     @State private var showUpdates=true
+    @State private var showContext=false
     private var taskTitle:String? {store.tasks.first{$0.id==run.taskID}?.task.title}
     private var visibleTurns:[TranscriptTurn] {
         (document?.turns ?? []).filter{entireThread || $0.id==run.id}.map { turn in
@@ -79,13 +80,15 @@ struct RunDetailView:View {
                 HStack(spacing:18) {
                     Label(run.projectName,systemImage:"folder")
                     Text(Format.tokens(run.tokens.total)+" токенов")
-                    Text(run.model.isEmpty ? "Модель не указана":run.model)
+                    Text((run.model.isEmpty ? "Модель не указана":run.model)+(run.effort.isEmpty ? "":" · "+run.effort))
                 }.font(.caption).foregroundStyle(MeterTheme.secondary)
                 if let taskTitle {Label(taskTitle,systemImage:"checkmark.circle.fill").font(.caption).foregroundStyle(MeterTheme.accent)}
                 else {Text("Пока без задачи. Прочитайте переписку и выберите, к какому результату относится этот запуск.").font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)}
                 HStack {
                     Picker("Показать",selection:$entireThread){Text("Этот запуск").tag(false);Text("Вся переписка").tag(true)}.pickerStyle(.segmented).labelsHidden().frame(maxWidth:290)
                     Spacer()
+                    Button {showContext=true} label:{Image(systemName:"info.circle")}
+                        .help("Контекст запуска: модель, рассуждение, harness и MCP").accessibilityLabel("Контекст запуска").accessibilityIdentifier("run-execution-context")
                     if let path=run.sourcePath {Button{NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath:path)])}label:{Image(systemName:"folder")}.help("Показать журнал в Finder")}
                 }
                 HStack {
@@ -125,6 +128,12 @@ struct RunDetailView:View {
                 }.controlSize(.small).disabled(visibleTurns.isEmpty)
             }.padding(12)
         }.textSelection(.enabled)
+        .sheet(isPresented:$showContext) {
+            VStack(alignment:.leading,spacing:16) {
+                HStack {Text("Контекст запуска").font(.title2);Spacer();Button("Готово"){showContext=false}.keyboardShortcut(.cancelAction)}
+                ScrollView {ExecutionContextView(run:run).frame(maxWidth:.infinity,alignment:.leading)}
+            }.padding(24).frame(width:580,height:560)
+        }
         .task(id:"\(run.id):\(run.sourcePath ?? ""):\(run.messageCount ?? 0)") {
             document=nil;issue=nil;loading=true
             guard !run.isService else {loading=false;return}

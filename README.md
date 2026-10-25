@@ -46,6 +46,10 @@ A task is an outcome, such as reviewing an API or building a feature. It can spa
 multiple prompts, sessions and helper skills. Group related runs, read the conversation
 and compare the time, tokens and measured quota used by each task.
 
+Task cards keep detailed spending behind a disclosure. Recorded execution context
+adds the model identifier, reasoning effort, Codex client version and actual MCP calls;
+missing historical inventory or server revisions stay explicit. [Data sources and limits](docs/execution-context.md).
+
 ![Task sorting, token usage, weekly quota and partial subscription cost estimates](docs/images/tasks.png)
 
 | Question | What Codex Meter shows |

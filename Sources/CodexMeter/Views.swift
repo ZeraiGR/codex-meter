@@ -322,20 +322,8 @@ struct TasksView:View {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
                         HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.kind).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
-                        Card {
-                            HStack{Metric(label:"Токены",value:Format.tokens(s.tokens.total));Metric(label:"Время выполнения",value:Format.time(s.activeSeconds))}
-                            Divider()
-                            TaskQuotaView(summary:s)
-                            Divider()
-                            TaskCostView(summary:s,exchangeRate:store.exchangeRate,exchangeRateIssue:store.exchangeRateIssue,updatingExchangeRate:store.updatingExchangeRate,refreshExchangeRate:{store.refreshExchangeRate()})
-                            if s.weeklyQuota==nil || s.quotaQuality.localizedCaseInsensitiveContains("параллельный") {
-                                Text(s.quotaQuality).font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
-                            }
-                        }
-                        Grid(alignment:.leading,horizontalSpacing:25,verticalSpacing:10) {
-                            detail("Вход",Format.tokens(s.tokens.input));detail("Из него кэш",Format.tokens(s.tokens.cached));detail("Выход",Format.tokens(s.tokens.output));detail("Из него reasoning",Format.tokens(s.tokens.reasoning));detail("Полное время",Format.time(s.wallSeconds));detail("Модели",s.models.joined(separator:", "));detail("Запусков",String(s.runs.count))
-                        }.font(.callout)
-                        Text("Кэш входит во входные токены, reasoning — в выходные. Полное время включает паузы; время выполнения учитывает параллельную работу один раз.").font(.caption).foregroundStyle(MeterTheme.secondary)
+                        TaskOverview(summary:s)
+                        TaskExecutionView(runs:s.runs)
                         HStack {
                             Button(s.task.status=="completed" ? "Открыть заново":"Завершить") {var task=s.task;task.status=task.status=="completed" ? "active":"completed";task.finished=task.status=="completed" ? Date():nil;save(task)}
                             if s.task.status != "cancelled" {Button("Отменить задачу"){var task=s.task;task.status="cancelled";task.finished=Date();save(task)}}
@@ -363,7 +351,6 @@ struct TasksView:View {
                                 }.buttonStyle(.bordered)
                             }
                         }
-                        ForecastCard(forecast:store.forecast(s.task.kind))
                     }
                 }.padding(22)
             }
@@ -393,7 +380,6 @@ struct TasksView:View {
         .sheet(item:$editing){task in TaskEditor(task:task)}
         .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns.subtract(selection.runs.map(\.id))})}
     }
-    func detail(_ label:String,_ value:String) -> some View {GridRow{Text(label).foregroundStyle(MeterTheme.secondary);Text(value).textSelection(.enabled)}}
     func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
 }
 
@@ -421,19 +407,6 @@ struct TaskEmptyState:View {
                     MoneyCard().frame(maxWidth:640).frame(maxWidth:.infinity)
                 }.padding(24).frame(maxWidth:.infinity,minHeight:geometry.size.height)
             }.scrollBounceBehavior(.basedOnSize)
-        }
-    }
-}
-
-struct ForecastCard:View {
-    var forecast:Forecast
-    var body:some View {
-        Card {
-            Label("Следующая похожая задача",systemImage:"sparkle.magnifyingglass").font(.headline)
-            Text("История: \(forecast.samples) завершённых задач").font(.caption).foregroundStyle(MeterTheme.secondary)
-            if let tokens=forecast.tokenMedian {HStack{Metric(label:"Обычно токенов",value:Format.tokens(Int64(tokens)));Metric(label:"С запасом",value:forecast.tokenUpper.map{Format.tokens(Int64($0))} ?? "—")}}
-            if let seconds=forecast.secondsMedian {Text("Обычно занимает \(Format.time(seconds))").font(.callout)}
-            Text(forecast.explanation).font(.caption).foregroundStyle(forecast.risk=="high" ? MeterTheme.danger:forecast.risk=="caution" ? MeterTheme.warning:MeterTheme.secondary)
         }
     }
 }
