@@ -10,12 +10,13 @@ struct TaskChoice: Identifiable, Equatable {
     let activity: Date
     let runCount: Int
     let searchText: String
-    var closed: Bool { status == "completed" || status == "cancelled" }
+    var closed: Bool { status == "completed" || status == "cancelled" || status == "failed" }
     var statusLabel: String {
         switch status {
         case "active": return "В работе"
         case "completed": return "Завершена"
         case "cancelled": return "Отменена"
+        case "failed": return "Не удалась"
         default: return "Ожидает"
         }
     }

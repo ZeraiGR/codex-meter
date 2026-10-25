@@ -17,6 +17,8 @@ import MeterCore
             window.isReleasedWhenClosed=false;defer {window.orderOut(nil)}
             var failures=0,saved=false
             func check(_ ok:Bool,_ name:String){print("\(ok ? "PASS":"FAIL") \(name)");if !ok {failures += 1}}
+            var failed=tasks[0];failed.task.status="failed"
+            check(TaskChoice(failed).closed && TaskChoice(failed).statusLabel=="Не удалась","Failed status remains distinct and closed in the merge chooser")
             func settle(_ seconds:Double=0.3){
                 let deadline=Date().addingTimeInterval(seconds)
                 while Date()<deadline {if let event=NSApp.nextEvent(matching:.any,until:deadline,inMode:.default,dequeue:true){NSApp.sendEvent(event)};NSApp.updateWindows()}
