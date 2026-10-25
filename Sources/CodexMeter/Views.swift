@@ -195,7 +195,7 @@ struct TasksView:View {
         HSplitView {
             VStack(alignment:.leading,spacing:12) {
                 HStack {
-                    TextField(showUnassigned ? "Поиск по запросам и ответам":"Поиск задачи или типа",text:$filter).textFieldStyle(.roundedBorder)
+                    TextField(showUnassigned ? "Поиск по запросам и ответам":"Поиск задачи или типа",text:Binding(get:{filter},set:{filter=$0;limit=100})).textFieldStyle(.roundedBorder)
                     Button{editing=WorkTask(title:"",kind:"Произвольная задача")}label:{Image(systemName:"plus")}.help("Создать задачу")
                 }
                 Picker("Список",selection:$showUnassigned){Text("Задачи").tag(false);Text("Запуски").tag(true)}.pickerStyle(.segmented).labelsHidden()
@@ -339,7 +339,12 @@ struct TasksView:View {
                         if !s.runs.isEmpty {
                             Text("Переписка задачи").font(.headline)
                             ForEach(s.runs.sorted{$0.started<$1.started}) {run in
-                                Button {checkedRuns=[run.id];filter="";onlyUnassigned=false;showUnassigned=true} label: {
+                                Button {
+                                    filter="";onlyUnassigned=false
+                                    if run.isService {includeService=true}
+                                    limit=max(100,(candidates.firstIndex{$0.id==run.id} ?? 0)+1)
+                                    checkedRuns=[run.id];showUnassigned=true
+                                } label: {
                                     HStack{Text(run.title).lineLimit(2);Spacer();Image(systemName:"chevron.right")}
                                 }.buttonStyle(.bordered)
                             }
@@ -352,7 +357,7 @@ struct TasksView:View {
             }.frame(minWidth:420,maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
         }.frame(maxWidth:.infinity,maxHeight:.infinity)
         .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || !checkedRuns.isEmpty}}
-        .onChange(of:filter){_,_ in limit=100;searchMatches=[]}
+        .onChange(of:filter){_,_ in searchMatches=[]}
         .onChange(of:shownRuns.map(\.id)){_,ids in checkedRuns.formIntersection(ids)}
         .onChange(of:showUnassigned){_,show in if !show {checkedRuns=[]}}
         .onChange(of:selected){_,_ in DispatchQueue.main.async { mergeTarget="" }}
