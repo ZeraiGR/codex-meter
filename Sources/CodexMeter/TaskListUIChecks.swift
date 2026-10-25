@@ -56,14 +56,14 @@ import MeterCore
         func click(_ row:Int) {
             // Native first-click handling can otherwise consume the click only to
             // activate this fixture after a previous test's popover lost focus.
-            NSApp.activate(ignoringOtherApps:true)
+            NSApp.activate(ignoringOtherApps:true);settle()
             window.makeKeyAndOrderFront(nil)
             window.makeFirstResponder(table)
             table.scrollRowToVisible(row);settle()
             let point=table.convert(NSPoint(x:table.bounds.midX,y:table.rect(ofRow:row).midY),to:nil)
             let down=NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
             let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
-            NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
+            NSApp.postEvent(up,atStart:true);window.sendEvent(down);settle()
         }
         choose(sort,"Токены");click(0)
         let strings=UIAccessibility.nodes(host).compactMap{UIAccessibility.value($0,"accessibilityValue") as? String}.joined(separator:" ")

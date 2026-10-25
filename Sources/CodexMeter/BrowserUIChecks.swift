@@ -100,6 +100,14 @@ import MeterCore
             let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
             NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
         }
+        func assignmentCount()->String? {
+            clickControl("run-assign-selected")
+            guard let content=window.attachedSheet?.contentView else {return nil}
+            let count=UIAccessibility.find(content,"assignment-selection-count")
+                .flatMap{UIAccessibility.value($0,"accessibilityValue") as? String}
+            UIAccessibility.press(UIAccessibility.find(content,"assignment-cancel"));settle()
+            return count
+        }
         func key(_ text:String,_ code:UInt16,_ flags:NSEvent.ModifierFlags=[]) {
             window.makeFirstResponder(table)
             let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:code)!
@@ -150,9 +158,9 @@ import MeterCore
         check(selectedCount()==0 && UIAccessibility.find(host,"run-assign-selected")==nil,"Unchecking the last run clears native selection and actions")
         clickControl("run-select-visible")
         UIAccessibility.capture(host,"run-select-all")
-        check(selectedCount()==3,"Select shown icon selects all three runs")
+        check(assignmentCount()=="Выбрано запусков: 3","Select shown icon assigns all three runs")
         store.runs=runs;settle()
-        check(selectedCount()==3,"History refresh preserves the selected run IDs")
+        check(assignmentCount()=="Выбрано запусков: 3","History refresh preserves the selected run IDs")
         typeQuery("неттакойфразы")
         check(UIAccessibility.find(host,"run-assign-selected")==nil,"Filtering out selected runs clears the batch")
         typeQuery("")
