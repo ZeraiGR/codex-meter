@@ -1,7 +1,7 @@
 import Foundation
 
 /// Recorded evidence only. Never backfill a historical run from today's configuration.
-public struct ExecutionConfiguration:Codable,Equatable {
+public struct ExecutionConfiguration:Codable {
     public var model:String
     public var effort:String
     public var provider:String?
@@ -11,8 +11,8 @@ public struct ExecutionConfiguration:Codable,Equatable {
     public init(model:String="",effort:String="",provider:String?=nil,serviceTier:String?=nil,contextWindow:Int?=nil) {
         self.model=model;self.effort=effort;self.provider=provider;self.serviceTier=serviceTier;self.contextWindow=contextWindow
     }
-    public static func ==(lhs:Self,rhs:Self)->Bool {
-        lhs.model==rhs.model && lhs.effort==rhs.effort && lhs.provider==rhs.provider && lhs.serviceTier==rhs.serviceTier && lhs.contextWindow==rhs.contextWindow
+    public func sameSettings(as other:Self)->Bool {
+        model==other.model && effort==other.effort && provider==other.provider && serviceTier==other.serviceTier && contextWindow==other.contextWindow
     }
 }
 
@@ -21,7 +21,11 @@ public struct ExecutionToolCall:Codable,Identifiable {
     public var name:String
     public var server:String?
     public var status:String
-    public init(id:String,name:String,server:String?=nil,status:String) {self.id=id;self.name=name;self.server=server;self.status=status}
+    public var completedAt:Date?
+    public var duration:Double?
+    public init(id:String,name:String,server:String?=nil,status:String,completedAt:Date?=nil,duration:Double?=nil) {
+        self.id=id;self.name=name;self.server=server;self.status=status;self.completedAt=completedAt;self.duration=duration
+    }
 }
 
 public struct ExecutionContext:Codable {
@@ -35,7 +39,7 @@ public struct ExecutionContext:Codable {
     }
     public var harness:String { [originator,clientVersion].compactMap{$0}.filter{!$0.isEmpty}.joined(separator:" ") }
     public mutating func record(_ configuration:ExecutionConfiguration) {
-        if configurations.last != configuration {configurations.append(configuration)}
+        if configurations.last?.sameSettings(as:configuration) != true {configurations.append(configuration)}
     }
     public mutating func add(_ tokens:TokenCount) {
         guard !configurations.isEmpty else{return}

@@ -11,6 +11,8 @@ public enum Journal {
         var thread=fallbackThread,parent:String?,active:String?,model="",effort=""
         var baseline=TokenCount(),runs:[String:RunRecord]=[:]
         var session=ExecutionContext(),configuration=ExecutionConfiguration()
+        var contextTurn:String?
+        var pendingContext=false
         // Only complete JSONL lines: a writer can be in the middle of its final line.
         let lines=data.split(separator:10,omittingEmptySubsequences:false)
         for line in lines.dropLast() {
@@ -23,9 +25,12 @@ public enum Journal {
                 configuration.provider=p["model_provider"] as? String
                 if let source=p["source"] as? [String:Any],let sub=source["subagent"] as? [String:Any],let spawn=sub["thread_spawn"] as? [String:Any] { parent=spawn["parent_thread_id"] as? String }
             } else if type=="turn_context" {
+                pendingContext=active==nil && p["turn_id"]==nil
+                if pendingContext {model="";effort=""}
+                contextTurn=p["turn_id"] as? String ?? active
                 model=p["model"] as? String ?? model;effort=p["effort"] as? String ?? effort
                 configuration.model=model;configuration.effort=effort
-                if let id=active,var run=runs[id] { run.model=model;run.effort=effort;run.execution?.record(configuration);runs[id]=run }
+                if let id=contextTurn,var run=runs[id] { run.model=model;run.effort=effort;run.execution?.record(configuration);runs[id]=run }
             } else if type=="event_msg" {
                 switch p["type"] as? String {
                 case "thread_settings_applied":
@@ -38,6 +43,8 @@ public enum Journal {
                     // A new turn closes an interrupted predecessor, not its user task.
                     if let previous=active,var old=runs[previous],old.ended==nil { old.ended=timestamp;old.outcome="interrupted";runs[previous]=old }
                     active=id
+                    if contextTurn != id && !pendingContext {model="";effort="";configuration.model="";configuration.effort=""}
+                    pendingContext=false
                     configuration.contextWindow=p["model_context_window"] as? Int
                     if runs[id]==nil {
                         var run=RunRecord(id:id,thread:thread,parentThread:parent,started:date(p["started_at"]) ?? timestamp,model:model,effort:effort)
@@ -46,10 +53,14 @@ public enum Journal {
                 case "item_completed":
                     if let id=p["turn_id"] as? String ?? active,var run=runs[id],let item=p["item"] as? [String:Any],let callID=item["id"] as? String {
                         let kind=item["type"] as? String
+                        let time=item["duration"] as? [String:Any]
+                        let duration=time.map{($0["secs"] as? Double ?? 0)+($0["nanos"] as? Double ?? 0)/1_000_000_000}
                         if kind=="McpToolCall",let server=item["server"] as? String,let tool=item["tool"] as? String {
-                            run.execution?.record(ExecutionToolCall(id:callID,name:tool,server:server,status:item["status"] as? String ?? "unknown"))
+                            let result=item["result"] as? [String:Any]
+                            let status=result?["isError"] as? Bool == true ? "failed":item["status"] as? String ?? "unknown"
+                            run.execution?.record(ExecutionToolCall(id:callID,name:tool,server:server,status:status,completedAt:timestamp,duration:duration))
                         } else if let kind,["CommandExecution","FileChange","ImageView"].contains(kind) {
-                            run.execution?.record(ExecutionToolCall(id:callID,name:kind,status:item["status"] as? String ?? "completed"))
+                            run.execution?.record(ExecutionToolCall(id:callID,name:kind,status:item["status"] as? String ?? "completed",completedAt:timestamp,duration:duration))
                         }
                         runs[id]=run
                     }

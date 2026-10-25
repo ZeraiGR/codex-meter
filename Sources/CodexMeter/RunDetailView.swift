@@ -80,14 +80,15 @@ struct RunDetailView:View {
                 HStack(spacing:18) {
                     Label(run.projectName,systemImage:"folder")
                     Text(Format.tokens(run.tokens.total)+" токенов")
-                    Text(run.model.isEmpty ? "Модель не указана":run.model)
+                    Text((run.model.isEmpty ? "Модель не указана":run.model)+(run.effort.isEmpty ? "":" · "+run.effort))
                 }.font(.caption).foregroundStyle(MeterTheme.secondary)
                 if let taskTitle {Label(taskTitle,systemImage:"checkmark.circle.fill").font(.caption).foregroundStyle(MeterTheme.accent)}
                 else {Text("Пока без задачи. Прочитайте переписку и выберите, к какому результату относится этот запуск.").font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)}
                 HStack {
                     Picker("Показать",selection:$entireThread){Text("Этот запуск").tag(false);Text("Вся переписка").tag(true)}.pickerStyle(.segmented).labelsHidden().frame(maxWidth:290)
                     Spacer()
-                    Button("Контекст запуска"){showContext=true}.accessibilityIdentifier("run-execution-context")
+                    Button {showContext=true} label:{Image(systemName:"info.circle")}
+                        .help("Контекст запуска: модель, рассуждение, harness и MCP").accessibilityLabel("Контекст запуска").accessibilityIdentifier("run-execution-context")
                     if let path=run.sourcePath {Button{NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath:path)])}label:{Image(systemName:"folder")}.help("Показать журнал в Finder")}
                 }
                 HStack {

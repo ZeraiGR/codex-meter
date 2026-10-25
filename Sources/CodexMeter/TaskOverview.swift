@@ -1,6 +1,21 @@
 import SwiftUI
 import MeterCore
 
+struct DetailsDisclosureStyle:DisclosureGroupStyle {
+    func makeBody(configuration:Configuration)->some View {
+        VStack(alignment:.leading,spacing:0) {
+            Button {configuration.isExpanded.toggle()} label: {
+                HStack(spacing:6) {
+                    Image(systemName:configuration.isExpanded ? "chevron.down":"chevron.right").font(.caption.weight(.semibold)).foregroundStyle(MeterTheme.secondary).frame(width:12)
+                    configuration.label
+                    Spacer(minLength:0)
+                }.frame(minHeight:28).contentShape(Rectangle()).textSelection(.disabled)
+            }.buttonStyle(.plain).accessibilityValue(configuration.isExpanded ? "Развёрнуто":"Свёрнуто")
+            if configuration.isExpanded {configuration.content}
+        }
+    }
+}
+
 struct TaskOverview:View {
     @EnvironmentObject var store:MeterStore
     let summary:TaskSummary
@@ -20,8 +35,9 @@ struct TaskOverview:View {
                 }.frame(maxWidth:.infinity,alignment:.leading)
                 VStack(alignment:.leading,spacing:4) {
                     Text("Недельная квота").font(.caption).foregroundStyle(MeterTheme.secondary)
-                    Text(summary.weeklyQuota.map{"≈ "+$0.points.formatted(.number.precision(.fractionLength(0...2)))+"%"} ?? "Нет измерений").font(.headline)
+                    Text(summary.weeklyQuota.map{$0.points<0.01 ? "< 0,01%":"≈ "+$0.points.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier:"ru_RU")))+"%"} ?? "Нет измерений").font(.headline)
                     if let quota=summary.weeklyQuota,!quota.complete {Text("Измерена часть задачи").font(.caption).foregroundStyle(MeterTheme.warning)}
+                    if let quota=summary.weeklyQuota,quota.windowCount>1 {Text("Недельных периодов: \(quota.windowCount)").font(.caption).foregroundStyle(MeterTheme.secondary)}
                 }.frame(maxWidth:.infinity,alignment:.leading)
             }
             DisclosureGroup(isExpanded:$expanded) {
@@ -33,23 +49,32 @@ struct TaskOverview:View {
                         row("Вход",Format.tokens(summary.tokens.input));row("Из него кэш",Format.tokens(summary.tokens.cached))
                         row("Выход",Format.tokens(summary.tokens.output));row("Из него reasoning",Format.tokens(summary.tokens.reasoning))
                         row("Полное время",Format.time(summary.wallSeconds))
-                    }.font(.callout).accessibilityIdentifier("task-token-breakdown")
+                    }.font(.callout)
                     Text("Кэш входит во входные токены, reasoning — в выходные. Полное время включает паузы; время выполнения учитывает параллельную работу один раз.").font(.caption).foregroundStyle(MeterTheme.secondary)
                     Text(summary.quotaQuality).font(.caption).foregroundStyle(MeterTheme.secondary)
                 }.padding(.top,12)
-            } label:{Text("Детали расхода").accessibilityIdentifier("task-expense-details")}
-        }
+            } label:{Text("Детали расхода")}
+                .accessibilityIdentifier("task-expense-details")
+        }.disclosureGroupStyle(DetailsDisclosureStyle())
     }
     private func row(_ title:String,_ value:String)->some View {GridRow {Text(title).foregroundStyle(MeterTheme.secondary);Text(value).textSelection(.enabled)}}
 }
 
 struct TaskExecutionView:View {
     let runs:[RunRecord]
-    private var models:String {Set(runs.map{$0.model}.filter{!$0.isEmpty}).sorted().joined(separator:", ")}
+    private var profiles:[String] {
+        Set(runs.flatMap {run in
+            let configurations=run.execution?.configurations ?? []
+            if configurations.isEmpty {return [(run.model.isEmpty ? "Модель не записана":run.model)+" · "+(run.effort.isEmpty ? "Рассуждение не записано":run.effort)]}
+            return configurations.map{($0.model.isEmpty ? "Модель не записана":$0.model)+" · "+($0.effort.isEmpty ? "Рассуждение не записано":$0.effort)}
+        }).sorted()
+    }
     var body:some View {
         VStack(alignment:.leading,spacing:8) {
             Text("Контекст выполнения").font(.headline)
-            Text("\(runs.count) запусков · "+(models.isEmpty ? "Модель не записана":models)).font(.callout).textSelection(.enabled)
+            Text("Запусков: \(runs.count)").font(.caption).foregroundStyle(MeterTheme.secondary)
+            ForEach(Array(profiles.prefix(3)),id:\.self) {Text($0).font(.callout).textSelection(.enabled)}
+            if profiles.count>3 {Text("Ещё сочетаний модели и рассуждения: \(profiles.count-3)").font(.caption).foregroundStyle(MeterTheme.secondary)}
             DisclosureGroup("Параметры и инструменты запусков") {
                 LazyVStack(alignment:.leading,spacing:18) {
                     ForEach(runs.sorted{$0.started<$1.started}) {run in
@@ -62,7 +87,7 @@ struct TaskExecutionView:View {
                     }
                 }.padding(.top,12)
             }.accessibilityIdentifier("task-execution-details")
-        }
+        }.disclosureGroupStyle(DetailsDisclosureStyle())
     }
 }
 
@@ -71,6 +96,7 @@ struct ExecutionContextView:View {
     var body:some View {
         VStack(alignment:.leading,spacing:10) {
             LabeledContent("Harness",value:run.execution?.harness.isEmpty == false ? run.execution!.harness:"Не записан")
+            Text("Клиент и версия записаны при создании диалога. После возобновления версия клиента могла измениться.").font(.caption).foregroundStyle(MeterTheme.secondary)
             if let source=run.execution?.source {LabeledContent("Источник",value:source)}
             let configurations=run.execution?.configurations ?? []
             if configurations.isEmpty {
@@ -105,10 +131,20 @@ struct ExecutionContextView:View {
                     let failed=values.filter{["failed","error","cancelled"].contains($0.status)}.count
                     if failed>0 {Text("Ошибок или отмен: \(failed)").font(.caption2).foregroundStyle(MeterTheme.warning)}
                 }
+                DisclosureGroup("События инструментов") {
+                    LazyVStack(alignment:.leading,spacing:8) {
+                        ForEach(calls) {call in
+                            VStack(alignment:.leading,spacing:2) {
+                                Text((call.server.map{$0+" / "} ?? "")+call.name).font(.caption.weight(.medium))
+                                Text([call.completedAt.map{$0.formatted(date:.omitted,time:.standard)},call.status,call.duration.map{Format.time($0)}].compactMap{$0}.joined(separator:" · ")).font(.caption2).foregroundStyle(MeterTheme.secondary)
+                            }
+                        }
+                    }.padding(.top,8)
+                }
             }
             DisclosureGroup("Идентификаторы запуска") {
                 VStack(alignment:.leading,spacing:4) {Text("Запуск: "+run.id);Text("Диалог: "+run.thread);if let parent=run.parentThread {Text("Родительский диалог: "+parent)};if let cwd=run.workingDirectory {Text("Проект: "+cwd)}}.font(.caption)
             }
-        }.font(.caption).textSelection(.enabled).accessibilityIdentifier("execution-context")
+        }.font(.caption).textSelection(.enabled).disclosureGroupStyle(DetailsDisclosureStyle()).accessibilityIdentifier("execution-context")
     }
 }

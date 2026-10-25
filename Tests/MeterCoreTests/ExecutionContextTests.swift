@@ -2,6 +2,17 @@ import Foundation
 import MeterCore
 
 extension MeterCoreTests {
+    func testLegacyContextBeforeTurnKeepsItsRecordedModel() throws {
+        let data=Data(("""
+        {"timestamp":"2026-10-25T10:00:00Z","type":"turn_context","payload":{"model":"legacy-model","effort":"high"}}
+        {"timestamp":"2026-10-25T10:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"legacy"}}
+        {"timestamp":"2026-10-25T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10}}}}
+        """+"\n").utf8)
+        let run=try XCTUnwrap(Journal.parse(data,fallbackThread:"thread").first)
+        XCTAssertEqual(run.model,"legacy-model");XCTAssertEqual(run.effort,"high")
+        XCTAssertEqual(run.execution?.configurations.first?.model,"legacy-model")
+        XCTAssertEqual(run.execution?.configurations.first?.tokens.total,10)
+    }
     func testExecutionContextTracksChangesAndCompletedToolsWithoutSecrets() throws {
         func row(_ type:String,_ payload:[String:Any])->String {
             String(data:try! JSONSerialization.data(withJSONObject:["timestamp":"2026-10-25T10:00:00Z","type":type,"payload":payload]),encoding:.utf8)!+"\n"
@@ -15,9 +26,13 @@ extension MeterCoreTests {
         log+=row("event_msg",["type":"token_count","info":["total_token_usage":["input_tokens":150,"output_tokens":30]]])
         let call:[String:Any]=["type":"item_completed","turn_id":"one","item":["type":"McpToolCall","id":"call","server":"docs","tool":"search","status":"completed","arguments":["token":"DO_NOT_STORE"],"result":"PRIVATE_RESULT"]]
         log+=row("event_msg",call);log+=row("event_msg",call)
+        log+=row("event_msg",["type":"item_completed","turn_id":"one","item":["type":"McpToolCall","id":"failed-call","server":"docs","tool":"fetch","status":"completed","duration":["secs":1,"nanos":500000000],"result":["isError":true]]])
         log+=row("event_msg",["type":"task_complete","turn_id":"one"])
         log+=row("event_msg",["type":"task_started","turn_id":"two"])
         log+=row("turn_context",["turn_id":"two","model":"model-c","effort":"medium"])
+        log+=row("event_msg",["type":"task_complete","turn_id":"two"])
+        log+=row("event_msg",["type":"task_started","turn_id":"missing-context"])
+        log+=row("event_msg",["type":"token_count","info":["total_token_usage":["input_tokens":160,"output_tokens":30]]])
         let runs=Journal.parse(Data(log.utf8),fallbackThread:"fallback")
         let run=try XCTUnwrap(runs.first{$0.id=="one"}),context=try XCTUnwrap(run.execution)
         XCTAssertEqual(context.harness,"codex-tui 0.test");XCTAssertEqual(context.source,"cli")
@@ -26,12 +41,15 @@ extension MeterCoreTests {
         XCTAssertEqual(context.configurations.map{$0.tokens.total},[120,60])
         XCTAssertEqual(context.configurations.first?.serviceTier,"priority")
         XCTAssertEqual(context.configurations.first?.contextWindow,200000)
-        XCTAssertEqual(context.calls.count,1);XCTAssertEqual(context.calls.first?.server,"docs")
+        XCTAssertEqual(context.calls.count,2);XCTAssertEqual(context.calls.first?.server,"docs")
+        XCTAssertEqual(context.calls.last?.status,"failed");XCTAssertEqual(context.calls.last?.duration,1.5)
         XCTAssertTrue(runs.first{$0.id=="two"}?.execution?.calls.isEmpty == true)
+        XCTAssertEqual(runs.first{$0.id=="missing-context"}?.model,"")
+        XCTAssertEqual(runs.first{$0.id=="missing-context"}?.effort,"")
         let encoded=try Codec.encode(run)
         XCTAssertFalse(encoded.contains("DO_NOT_STORE"));XCTAssertFalse(encoded.contains("PRIVATE_RESULT"))
         let db=try database();defer{try? FileManager.default.removeItem(at:db.directory)}
-        try db.saveRun(run);XCTAssertEqual(try db.runs().first?.execution?.calls.count,1)
+        try db.saveRun(run);XCTAssertEqual(try db.runs().first?.execution?.calls.count,2)
     }
     func testExecutionContextBackfillsOldRunsWithoutChangingBindings() throws {
         let db=try database();defer{try? FileManager.default.removeItem(at:db.directory)}
