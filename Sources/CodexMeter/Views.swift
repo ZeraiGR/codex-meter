@@ -167,15 +167,13 @@ struct TasksView:View {
     @State private var filter=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_SEARCH"] ?? ""
     @State private var editing:WorkTask?
     @State private var assigning:RunAssignment?
-    @State private var selectingRuns=false
-    @State private var checkedRuns=Set<String>()
+    @State private var checkedRuns=Set(ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"].map{[$0]} ?? [])
     @State private var showUnassigned=false
     @State private var mergeTarget=""
     @State private var taskSort:TaskSort = .recent
     @State private var taskAscending=false
     @State private var taskStatus=""
     @State private var taskKind=""
-    @State private var selectedRun:String?=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"]
     @State private var onlyUnassigned=true
     @State private var includeService=false
     @State private var limit=100
@@ -186,12 +184,13 @@ struct TasksView:View {
     @State private var searchRevision=0
     var candidates:[RunRecord] {store.runs.filter{(!onlyUnassigned || $0.taskID==nil) && (includeService || !$0.isService)}}
     var filteredRuns:[RunRecord] {candidates.filter{run in filter.isEmpty || [run.title,run.preview ?? "",run.workingDirectory ?? "",run.model,store.tasks.first(where:{$0.id==run.taskID})?.task.title ?? ""].contains(where:{$0.localizedCaseInsensitiveContains(filter)}) || searchMatches.contains(run.id)}}
+    var shownRuns:[RunRecord] {Array(filteredRuns.prefix(limit))}
     var runGroups:[(Date,[RunRecord])] {
-        Dictionary(grouping:Array(filteredRuns.prefix(limit)),by:{Calendar.current.startOfDay(for:$0.started)}).sorted{$0.key>$1.key}.map{($0.key,$0.value)}
+        Dictionary(grouping:shownRuns,by:{Calendar.current.startOfDay(for:$0.started)}).sorted{$0.key>$1.key}.map{($0.key,$0.value)}
     }
     var visibleTasks:[TaskSummary] {TaskListQuery.apply(store.tasks,query:filter,status:taskStatus,kind:taskKind,sort:taskSort,ascending:taskAscending)}
     var selectedTask:TaskSummary? {store.tasks.first{$0.id==selected}}
-    var runsToAssign:[RunRecord] {filteredRuns.filter{checkedRuns.contains($0.id)}}
+    var runsToAssign:[RunRecord] {shownRuns.filter{checkedRuns.contains($0.id)}}
     var body:some View {
         HSplitView {
             VStack(alignment:.leading,spacing:12) {
@@ -214,35 +213,16 @@ struct TasksView:View {
                         if !filter.isEmpty {Button {searchRevision += 1} label:{Image(systemName:"arrow.clockwise")}.buttonStyle(.plain).help("Обновить поиск с учётом новых сообщений").disabled(searching)}
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary).frame(height:16)
                     if unavailable>0 && !filter.isEmpty {Text("Часть журналов недоступна; поиск по ним ограничен заголовками.").font(.caption2).foregroundStyle(MeterTheme.secondary)}
-                    HStack {
-                        Button(selectingRuns ? "Готово":"Выбрать несколько") {selectingRuns.toggle();checkedRuns=[]}
-                            .accessibilityIdentifier("run-selection-mode")
-                        Spacer()
-                        if selectingRuns {
-                            Button("Выбрать показанные") {checkedRuns.formUnion(filteredRuns.prefix(limit).map(\.id))}
-                                .disabled(filteredRuns.isEmpty).accessibilityIdentifier("run-select-visible")
-                        }
-                    }.font(.caption)
-                    if selectingRuns {
-                        HStack {
-                            Text("Выбрано: \(runsToAssign.count)").monospacedDigit()
-                            Spacer()
-                            Button("Сбросить") {checkedRuns=[]}.disabled(checkedRuns.isEmpty)
-                            Button("Добавить к задаче") {assigning=RunAssignment(runs:runsToAssign)}
-                                .disabled(runsToAssign.isEmpty).accessibilityIdentifier("run-assign-selected")
-                        }.font(.caption)
-                    }
-                    List(selection:$selectedRun) {
+                    List(selection:$checkedRuns) {
                         ForEach(runGroups,id:\.0) {date,runs in
                             Section(date.formatted(date:.abbreviated,time:.omitted)) {
                                 ForEach(runs) {run in
                                     HStack {
-                                        if selectingRuns {
-                                            Toggle("Выбрать запуск",isOn:Binding(get:{checkedRuns.contains(run.id)},set:{value in
+                                        Toggle("Выбрать запуск",isOn:Binding(get:{checkedRuns.contains(run.id)},set:{value in
                                                 if value {checkedRuns.insert(run.id)} else {checkedRuns.remove(run.id)}
                                             })).labelsHidden().toggleStyle(.checkbox).accessibilityLabel("Выбрать: \(run.title)")
-                                                .accessibilityIdentifier("run-check-\(run.id)")
-                                        }
+                                            .accessibilityIdentifier("run-check-\(run.id)")
+                                            .help("Выбрать запуск для назначения задаче")
                                         RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
                                     }.tag(run.id)
                                 }
@@ -250,6 +230,7 @@ struct TasksView:View {
                         }
                         if filteredRuns.count>limit {Button("Показать ещё 100"){limit += 100}.buttonStyle(.plain)}
                     }.listStyle(.inset).frame(minHeight:220,maxHeight:.infinity)
+                    .onExitCommand {checkedRuns=[]}
                     .overlay {
                         if filteredRuns.isEmpty && !searching {
                             VStack(spacing:8) {
@@ -259,7 +240,25 @@ struct TasksView:View {
                             }.foregroundStyle(MeterTheme.secondary).multilineTextAlignment(.center).padding(12).allowsHitTesting(false)
                         }
                     }
-                    HStack{Text("Найдено: \(filteredRuns.count)");Spacer();if !includeService {Text("Служебные скрыты")}}.font(.caption2).foregroundStyle(MeterTheme.secondary)
+                    HStack(spacing:8) {
+                        Button {
+                            checkedRuns=runsToAssign.count==shownRuns.count ? []:Set(shownRuns.map(\.id))
+                        } label: {
+                            Image(systemName:checkedRuns.isEmpty ? "square":runsToAssign.count==shownRuns.count ? "checkmark.square.fill":"minus.square.fill")
+                        }.help("Выбрать или снять выбор показанных запусков (\(shownRuns.count))")
+                            .accessibilityLabel("Выбрать показанные запуски").accessibilityIdentifier("run-select-visible")
+                            .disabled(shownRuns.isEmpty)
+                        Text(checkedRuns.isEmpty ? "Найдено: \(filteredRuns.count)":"Выбрано: \(runsToAssign.count)")
+                            .monospacedDigit().accessibilityIdentifier("run-selection-count")
+                        Spacer(minLength:0)
+                        if !checkedRuns.isEmpty {
+                            Button {assigning=RunAssignment(runs:runsToAssign)} label:{Label("Назначить",systemImage:"folder.badge.plus")}
+                                .accessibilityIdentifier("run-assign-selected")
+                            Button {checkedRuns=[]} label:{Image(systemName:"xmark")}
+                                .help("Снять выделение (Esc)").accessibilityLabel("Снять выделение")
+                                .accessibilityIdentifier("run-clear-selection").keyboardShortcut(.cancelAction)
+                        }
+                    }.font(.caption).controlSize(.small).frame(height:28)
                 } else {
                     TaskListControls(sort:$taskSort,ascending:$taskAscending,status:$taskStatus,kind:$taskKind)
                     List(selection:$selected) {
@@ -291,11 +290,13 @@ struct TasksView:View {
                         }
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                Text(showUnassigned ? "Выберите запуск, прочитайте переписку и назначьте задачу.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                Text(showUnassigned ? "Флажок или ⌘-клик — выбор нескольких; ⇧-клик — диапазон.":"Одна задача может включать несколько запусков. Откройте «Запуски», чтобы добавить переписку.").font(.caption2).foregroundStyle(MeterTheme.secondary)
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {
-                if let run=store.runs.first(where:{$0.id==selectedRun}) {
+                if runsToAssign.count>1 {
+                    RunSelectionSummary(runs:runsToAssign,assign:{assigning=RunAssignment(runs:runsToAssign)})
+                } else if let run=runsToAssign.first {
                     RunDetailView(run:run,assign:{assigning=RunAssignment(runs:[run])}).id(run.id)
                 } else {
                     ContentUnavailableView("Выберите запуск",systemImage:"bubble.left.and.bubble.right",description:Text("Справа появятся ваши запросы, ответы Codex и контекст переписки. После просмотра запуск можно назначить задаче."))
@@ -338,7 +339,7 @@ struct TasksView:View {
                         if !s.runs.isEmpty {
                             Text("Переписка задачи").font(.headline)
                             ForEach(s.runs.sorted{$0.started<$1.started}) {run in
-                                Button {selectedRun=run.id;onlyUnassigned=false;showUnassigned=true} label: {
+                                Button {checkedRuns=[run.id];filter="";onlyUnassigned=false;showUnassigned=true} label: {
                                     HStack{Text(run.title).lineLimit(2);Spacer();Image(systemName:"chevron.right")}
                                 }.buttonStyle(.bordered)
                             }
@@ -350,10 +351,10 @@ struct TasksView:View {
             }
             }.frame(minWidth:420,maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
         }.frame(maxWidth:.infinity,maxHeight:.infinity)
-        .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty}}
+        .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || !checkedRuns.isEmpty}}
         .onChange(of:filter){_,_ in limit=100;searchMatches=[]}
-        .onChange(of:filteredRuns.map(\.id)){_,ids in checkedRuns.formIntersection(ids)}
-        .onChange(of:showUnassigned){_,_ in checkedRuns=[];selectingRuns=false}
+        .onChange(of:shownRuns.map(\.id)){_,ids in checkedRuns.formIntersection(ids)}
+        .onChange(of:showUnassigned){_,show in if !show {checkedRuns=[]}}
         .onChange(of:selected){_,_ in DispatchQueue.main.async { mergeTarget="" }}
         .onChange(of:visibleTasks.map(\.id)) {_,ids in
             if let selected,!ids.contains(selected) {DispatchQueue.main.async { self.selected=nil }}
@@ -369,7 +370,7 @@ struct TasksView:View {
             } catch is CancellationError {} catch {searching=false}
         }
         .sheet(item:$editing){task in TaskEditor(task:task)}
-        .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns=[];selectingRuns=false})}
+        .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns=[]})}
     }
     func detail(_ label:String,_ value:String) -> some View {GridRow{Text(label).foregroundStyle(MeterTheme.secondary);Text(value).textSelection(.enabled)}}
     func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
@@ -451,7 +452,7 @@ struct AssignEditor:View {
             Text(runs.count==1 ? "Выберите результат, к которому относится этот запрос.":"Выберите задачу для всех отмеченных запусков.")
                 .font(.callout).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
             VStack(alignment:.leading,spacing:6) {
-                Text(runs.count==1 ? "Выбранный запрос":"Выбрано запусков: \(runs.count)").font(.caption.weight(.semibold))
+                Text(runs.count==1 ? "Выбранный запрос":"Выбрано запусков: \(runs.count)").font(.caption.weight(.semibold)).accessibilityIdentifier("assignment-selection-count")
                 ForEach(runs.prefix(3)) {run in
                     Text(run.title).font(.caption).foregroundStyle(MeterTheme.secondary).lineLimit(2)
                         .fixedSize(horizontal:false,vertical:true).textSelection(.disabled)
@@ -484,7 +485,7 @@ struct AssignEditor:View {
             }
             if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger)}
             HStack {
-                Button("Отмена"){dismiss()}
+                Button("Отмена"){dismiss()}.accessibilityIdentifier("assignment-cancel")
                 Spacer()
                 Button(creating || store.tasks.isEmpty ? "Создать и добавить":"Добавить к задаче") {
                     addToTask()

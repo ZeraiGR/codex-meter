@@ -29,8 +29,29 @@ import MeterCore
         UIAccessibility.capture(host,"task-empty-compact")
         window.setContentSize(NSSize(width:980,height:740));settle()
         guard let table=descendants(host).compactMap({$0 as? NSTableView}).first,
-              let sort=descendants(host).compactMap({$0 as? NSPopUpButton}).first(where:{$0.itemTitles.contains("Токены")}) else {
+              let sort=UIAccessibility.find(host,"task-list-sort") else {
             check(false,"Task list and native sorting control exist");return false
+        }
+        func choose(_ popup:NSObject?,_ title:String) {
+            guard let popup else {check(false,"Menu control exists: "+title);return}
+            if let native=popup as? NSPopUpButton {
+                native.menu?.performActionForItem(at:native.indexOfItem(withTitle:title))
+            } else {
+                // Newer SwiftUI exposes the picker through accessibility and a tracked menu.
+                let observer=NotificationCenter.default.addObserver(forName:NSMenu.didBeginTrackingNotification,object:nil,queue:.main) { notification in
+                    guard let menu=notification.object as? NSMenu else {return}
+                    DispatchQueue.main.async {
+                        let index=menu.indexOfItem(withTitle:title)
+                        if index>=0 {menu.performActionForItem(at:index)}
+                        menu.cancelTracking()
+                    }
+                }
+                defer {NotificationCenter.default.removeObserver(observer)}
+                NSApp.activate(ignoringOtherApps:true)
+                UIAccessibility.press(popup)
+                settle()
+            }
+            settle()
         }
         func click(_ row:Int) {
             // Native first-click handling can otherwise consume the click only to
@@ -44,7 +65,7 @@ import MeterCore
             let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
             NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
         }
-        sort.menu?.performActionForItem(at:sort.indexOfItem(withTitle:"Токены"));settle();click(0)
+        choose(sort,"Токены");click(0)
         let strings=UIAccessibility.nodes(host).compactMap{UIAccessibility.value($0,"accessibilityValue") as? String}.joined(separator:" ")
         check(table.numberOfRows==1200 && strings.contains("Разработка редактора документов"),"Sorting 1200 tasks by tokens opens the largest task on the first row")
         check(UIAccessibility.find(host,"task-weekly-quota") != nil && UIAccessibility.find(host,"task-quota-partial") != nil,"Selected task shows weekly quota separately with partial coverage")
@@ -63,12 +84,10 @@ import MeterCore
             if let editor=kind.currentEditor() as? NSTextView {editor.setSelectedRange(NSRange(location:0,length:(editor.string as NSString).length));editor.insertText(value,replacementRange:editor.selectedRange())};settle()
         }
         type("Релиз")
-        if let status=descendants(content).compactMap({$0 as? NSPopUpButton}).first(where:{$0.itemTitles.contains("Все статусы")}) {
-            status.menu?.performActionForItem(at:status.indexOfItem(withTitle:"Завершена"));settle()
-        }
+        choose(UIAccessibility.find(content,"task-list-status"),"Завершена")
         check(table.numberOfRows==200,"Status and type filters combine without altering the underlying tasks")
         store.tasks=store.tasks.map{$0};store.updating=true;settle()
-        check(table.numberOfRows==200 && sort.titleOfSelectedItem=="Токены","Background refresh preserves task sorting and filters")
+        check(table.numberOfRows==200 && ((sort as? NSPopUpButton)?.titleOfSelectedItem ?? UIAccessibility.value(sort,"accessibilityValue") as? String)=="Токены","Background refresh preserves task sorting and filters")
         type("такого типа нет")
         check(table.numberOfRows==0 && table.visibleRect.height>=220,"Empty task filter keeps a usable list and a recovery action")
         let done=UIAccessibility.find(content,"task-list-filters-done")
