@@ -89,7 +89,7 @@ public final class Database {
         try exec("UPDATE turns SET task_id=? WHERE id=? AND thread=?",[task,turn,thread])
     }
     public func activeTask(thread: String) throws -> WorkTask? {
-        guard let id=try value("active:\(thread)"), let task=try task(id), ["active","paused"].contains(task.status) else { return nil }
+        guard let id=try value("active:\(thread)"), let task=try task(id) else { return nil }
         return task
     }
     public func saveRun(_ run: RunRecord) throws {

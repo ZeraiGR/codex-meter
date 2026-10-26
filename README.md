@@ -197,3 +197,8 @@ Tasks support independent checkboxes, bulk status changes and atomic merging int
 Task types use a shared catalog beside task search, with explicit selection, rename, archive and delete actions. New installations start with an empty catalog; upgrades preserve existing types. Skill names never classify tasks automatically; legacy types remain unconfirmed until assigned. See [task types](docs/usage.ru.md#справочник-типов-задач).
 
 Merge a task directly from its card: the button opens a focused destination search, explains the transfer and reveals the resulting task after saving.
+
+Task statuses are controlled only by the human in the app. Tracking, waiting for
+input, agent completion and switching tasks preserve existing statuses and completion
+dates. Since 1.4.14, `task-resume` only binds tracking; `task-end` and `task-pause`
+reject changes. Update both the app and the separately installed integration skill.

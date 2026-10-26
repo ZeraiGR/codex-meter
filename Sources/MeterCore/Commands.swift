@@ -8,9 +8,8 @@ public enum Commands {
     sync                           Import local token events
     tasks                          List user tasks and their metrics
     task-start --thread ID --turn ID --title TEXT [--type-id ID] [--skill NAME]
-    task-resume --id ID --thread ID --turn ID
-    task-end --id ID [--outcome completed|cancelled|failed]
-    task-pause --id ID
+    task-resume --id ID --thread ID --turn ID  Bind tracking without changing status
+    Task statuses are changed manually in the app; task-end/task-pause are disabled.
     task-assign --id ID --thread ID --turn ID
     task-merge --source ID --target ID
     task-types                     List configured task types
@@ -48,9 +47,8 @@ public enum Commands {
                 if var active=try db.activeTask(thread:thread) {
                     if active.title==title {
                         if let typeID=option("type-id") {active.typeID=typeID}
-                        active.status="active";try db.saveTask(active);try db.bind(thread:thread,turn:turn,task:active.id);return active
+                        try db.saveTask(active);try db.bind(thread:thread,turn:turn,task:active.id);return active
                     }
-                    active.status="paused";try db.saveTask(active)
                 }
                 var task=WorkTask(title:title,kind:kind,skillVersion:option("skill-version"))
                 task.typeID=option("type-id");task.skill=option("skill")
@@ -60,19 +58,13 @@ public enum Commands {
             return try Codec.encode(task)
         case "task-resume":
             let id=try required("id"),thread=try required("thread"),turn=try required("turn")
-            guard var task=try db.task(id) else{throw MeterError("Задача не найдена")}
+            guard let task=try db.task(id) else{throw MeterError("Задача не найдена")}
             try db.transaction {
-                if var previous=try db.activeTask(thread:thread),previous.id != id {previous.status="paused";try db.saveTask(previous)}
-                task.status="active";task.finished=nil;try db.saveTask(task);try db.bind(thread:thread,turn:turn,task:id);try db.set("active:\(thread)",id)
+                try db.bind(thread:thread,turn:turn,task:id);try db.set("active:\(thread)",id)
             }
             return try Codec.encode(task)
         case "task-end","task-pause":
-            let id=try required("id")
-            guard var task=try db.task(id) else{throw MeterError("Задача не найдена")}
-            let outcome=command=="task-pause" ? "paused":option("outcome") ?? "completed"
-            guard ["paused","completed","cancelled","failed"].contains(outcome) else{throw MeterError("Неизвестный результат задачи")}
-            task.status=outcome;task.finished=outcome=="paused" ? nil:Date();try db.saveTask(task)
-            return try Codec.encode(task)
+            throw MeterError("Статус задачи меняет только человек в приложении Codex Meter. Команды task-end и task-pause отключены.")
         case "task-assign":try db.bind(thread:required("thread"),turn:required("turn"),task:required("id"));return "{\"ok\":true}"
         case "task-merge":try db.mergeTasks(source:required("source"),target:required("target"));return "{\"ok\":true}"
         case "forecast":
@@ -98,9 +90,9 @@ public enum Commands {
         Codex Meter tracks user-level tasks locally. Current thread=\(thread), turn=\(turn).
         CLI executable: \(binary). Quote paths/arguments safely.
         For work performed with a skill, automatically call task-start --thread <thread> --turn <turn> --title <specific user outcome> --skill <skill-name> before substantial work. A skill is NOT a task type. Leave the type unassigned unless the user explicitly identifies it; use task-types and --type-id <existing ID> only for an explicit classification. Never create types from skill names. Run forecast --model <current model>, adding --type-id only when classified. Warn concisely if risk is high/caution; never promise sufficient quota when unknown. Tracking failure must not block user work.
-        For other work, start tracking when the user asks to start a task (e.g. «начинаем задачу …»). Reuse the same task for clarifications/retries/continuations; a response ending is not task completion. task-pause --id ID when waiting for user input; task-end --id ID only when the intended outcome is delivered (or --outcome cancelled/failed). Use task-resume --id ID --thread <thread> --turn <turn> to continue across sessions. Child agents belong to their parent's task, not new tasks. Do not start a task solely for a nested helper skill.
+        Task statuses belong exclusively to the human. Never complete, pause, cancel, fail or reopen a task automatically, including after delivering work, waiting for input, errors or switching sessions. task-end and task-pause are disabled. The human changes statuses using the app. For other work, start tracking when the user asks to start a task (e.g. «начинаем задачу …»). Reuse the same task for clarifications/retries/continuations. Use task-resume --id ID --thread <thread> --turn <turn> only to bind tracking across sessions; it preserves status and completion date. Child agents belong to their parent's task, not new tasks. Do not start a task solely for a nested helper skill.
         """
-        if let active {context += "\nExisting task: \(active.id); type=\(active.typeLabel); typeID=\(active.typeID ?? "unassigned"); title=\(active.title). Continue it unless the user starts a distinct task."}
+        if let active {context += "\nExisting task: \(active.id); status=\(active.status); type=\(active.typeLabel); typeID=\(active.typeID ?? "unassigned"); title=\(active.title). Continue tracking it without changing its status unless the user starts a distinct task."}
         if let snapshot=try db.snapshot(),snapshot.fresh(),let window=snapshot.moneyWindow,window.valid(at:Date()) {
             context += "\nCached remaining main quota: \(Int(window.remaining))%, window \(window.label). This is quota, not a remaining token count."
         }

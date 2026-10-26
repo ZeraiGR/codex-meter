@@ -78,7 +78,7 @@ let checks: [(String, () throws -> Void)] = [
     ("testAttributionReservesUnassignedShare", suite.testAttributionReservesUnassignedShare),
     ("testAttributionMissingSnapshotsDoesNotPretendTotal", suite.testAttributionMissingSnapshotsDoesNotPretendTotal),
     ("testForecastRefusesUnfoundedConfidence", suite.testForecastRefusesUnfoundedConfidence),
-    ("testTaskCLIReusesAndPausesCorrectly", suite.testTaskCLIReusesAndPausesCorrectly),
+    ("testTaskCLITrackingPreservesHumanStatuses", suite.testTaskCLITrackingPreservesHumanStatuses),
     ("testHookProvidesTaskContextWithoutNetwork", suite.testHookProvidesTaskContextWithoutNetwork)
 ]
 for (name, check) in checks {
