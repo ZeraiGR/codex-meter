@@ -51,6 +51,7 @@ struct TaskChooser: View {
     @State private var scope=0
     @State private var typeID=""
     var autofocus=false
+    var showsFilters=true
     var confirm:()->Void = {}
     private var matches:[TaskChoice] { TaskChoice.matching(choices,query:query,scope:scope,typeID:typeID) }
     private var selected:TaskChoice? { choices.first { $0.id == selection } }
@@ -61,12 +62,14 @@ struct TaskChooser: View {
         VStack(alignment:.leading,spacing:8) {
             TaskSearchField(text:$query,autofocus:autofocus,move:move,confirm:confirm)
                 .frame(height:28)
-            Picker("Статус задач",selection:$scope) {
-                Text("Все").tag(0)
-                Text("Открытые").tag(1)
-                Text("Завершённые").tag(2)
-            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("task-choice-scope")
-            TaskTypeFilter(selection:$typeID).font(.caption).accessibilityIdentifier("task-choice-type")
+            if showsFilters {
+                Picker("Статус задач",selection:$scope) {
+                    Text("Все").tag(0)
+                    Text("Открытые").tag(1)
+                    Text("Завершённые").tag(2)
+                }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("task-choice-scope")
+                TaskTypeFilter(selection:$typeID).font(.caption).accessibilityIdentifier("task-choice-type")
+            }
             HStack {
                 Text("Найдено: \(matches.count) из \(choices.count)")
                     .accessibilityIdentifier("task-choice-count")
