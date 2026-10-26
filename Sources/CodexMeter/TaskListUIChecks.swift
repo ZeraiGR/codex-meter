@@ -72,6 +72,15 @@ import MeterCore
         check(table.numberOfRows==1200 && strings.contains("Разработка редактора документов"),"Sorting 1200 tasks by tokens opens the largest task on the first row")
         check(!strings.contains("Измерения покрывают"),"Task expense breakdown starts collapsed")
         func selectedCount()->String {UIAccessibility.find(host,"task-selection-count").flatMap{UIAccessibility.value($0,"accessibilityValue") as? String} ?? ""}
+        check(UIAccessibility.find(host,"task-check-task-1199")==nil && UIAccessibility.find(host,"task-selection-count")==nil,"Task checkboxes and mass actions start hidden")
+        check(UIAccessibility.find(host,"task-unclassified-filter")==nil,"No unclassified shortcut is shown when every task has a type")
+        UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
+        UIAccessibility.press(UIAccessibility.find(host,"task-check-task-1199"));settle()
+        check(selectedCount()=="Выбрано: 1","Icon enables task selection")
+        UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
+        check(UIAccessibility.find(host,"task-check-task-1199")==nil && UIAccessibility.find(host,"task-selection-count")==nil && table.selectedRow==0,"Disabling selection hides checks and preserves the open card")
+        UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
+        check(selectedCount()=="Выбрано: 0","Re-enabling selection starts without stale checks")
         for row in 0..<9 {
             table.scrollRowToVisible(row);settle()
             UIAccessibility.press(UIAccessibility.find(host,"task-check-task-\(1199-row)"));settle()
@@ -113,6 +122,30 @@ import MeterCore
         let reset=UIAccessibility.find(host,"task-list-reset")
         UIAccessibility.press(reset);settle()
         check(table.numberOfRows==1200,"Resetting an empty search restores the full task list")
+
+        UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
+        store.tasks[0].task.typeID=nil;store.tasks[1].task.typeID=nil;settle()
+        let search=descendants(host).compactMap{$0 as? NSTextField}.first{$0.placeholderString=="Поиск задачи или типа"}
+        search?.selectText(nil)
+        if let editor=search?.currentEditor() as? NSTextView {
+            editor.setSelectedRange(NSRange(location:0,length:(editor.string as NSString).length));editor.insertText("неттакойзадачи",replacementRange:editor.selectedRange())
+        }
+        settle();check(table.numberOfRows==0,"Existing search can hide unclassified tasks")
+        UIAccessibility.press(UIAccessibility.find(host,"task-unclassified-filter"));settle()
+        check(table.numberOfRows==2 && UIAccessibility.find(host,"task-unclassified-badge-task-0") != nil,"One click finds and highlights tasks without a type")
+        UIAccessibility.capture(host,"task-unclassified-light")
+        window.appearance=NSAppearance(named:.darkAqua);settle()
+        UIAccessibility.capture(host,"task-unclassified-dark")
+        window.appearance=NSAppearance(named:.aqua)
+        store.tasks=store.tasks.map{$0};store.updating=true;settle()
+        check(table.numberOfRows==2,"Background refresh preserves the unclassified shortcut filter")
+        UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
+        UIAccessibility.press(UIAccessibility.find(host,"task-select-visible"));settle()
+        check(selectedCount()=="Выбрано: 2","Unclassified tasks can be selected together for classification")
+        store.tasks[0].task.typeID="release";store.tasks[1].task.typeID="development";settle()
+        check(table.numberOfRows==0 && selectedCount()=="Выбрано: 0" && UIAccessibility.find(host,"task-unclassified-filter") != nil,"Classified tasks leave the selection while the empty shortcut can still be switched off")
+        UIAccessibility.press(UIAccessibility.find(host,"task-unclassified-filter"));settle()
+        check(table.numberOfRows==1200 && UIAccessibility.find(host,"task-unclassified-filter")==nil,"Switching off the empty shortcut restores all tasks")
 
         var summary=store.tasks[0]
         summary.weeklyQuota=WeeklyQuotaUsage(points:150,coverage:1,windowCount:2)

@@ -169,6 +169,7 @@ struct TasksView:View {
     @State private var assigning:RunAssignment?
     @State private var checkedRuns=Set<String>()
     @State private var checkedTasks=Set<String>()
+    @State private var selectionMode=false
     @State private var taskBatch:TaskBatchRequest?
     @State private var previewRun:String?=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"]
     @State private var showUnassigned=false
@@ -200,6 +201,7 @@ struct TasksView:View {
     }
     var visibleTasks:[TaskSummary] {TaskListQuery.apply(store.tasks,query:filter,status:taskStatus,kind:taskKind,sort:taskSort,ascending:taskAscending)}
     var tasksToActOn:[TaskSummary] {visibleTasks.filter{checkedTasks.contains($0.id)}}
+    var unclassifiedCount:Int {store.tasks.filter{$0.task.typeID==nil}.count}
     var selectedTask:TaskSummary? {store.tasks.first{$0.id==selected}}
     var runsToAssign:[RunRecord] {shownRuns.filter{checkedRuns.contains($0.id)}}
     var body:some View {
@@ -211,7 +213,18 @@ struct TasksView:View {
                     Button("Типы",systemImage:"tag"){managingTypes=true}.help("Типы задач")
                         .accessibilityIdentifier("task-types-open")
                 }
-                Picker("Список",selection:$showUnassigned){Text("Задачи").tag(false);Text("Запуски").tag(true)}.pickerStyle(.segmented).labelsHidden()
+                HStack {
+                    Picker("Список",selection:$showUnassigned){Text("Задачи").tag(false);Text("Запуски").tag(true)}.pickerStyle(.segmented).labelsHidden()
+                    Button {
+                        selectionMode.toggle()
+                        if !selectionMode {checkedTasks=[];checkedRuns=[]}
+                    } label:{Image(systemName:"checklist").font(.body.weight(selectionMode ? .bold:.regular))}
+                        .tint(selectionMode ? Color.accentColor:nil)
+                        .background(selectionMode ? Color.accentColor.opacity(0.18):Color.clear,in:RoundedRectangle(cornerRadius:6))
+                        .help(selectionMode ? "Выключить массовый выбор и снять отметки":"Включить массовый выбор")
+                        .accessibilityLabel("Массовый выбор").accessibilityValue(selectionMode ? "Включён":"Выключен")
+                        .accessibilityIdentifier("selection-mode-toggle")
+                }
                 if store.loadingHistory {ProgressView("Обновляем историю…").controlSize(.small)}
                 if showUnassigned {
                     HStack {
@@ -239,6 +252,7 @@ struct TasksView:View {
                             Section(date.formatted(date:.abbreviated,time:.omitted)) {
                                 ForEach(runs) {run in
                                     HStack {
+                                        if selectionMode {
                                         Button {
                                             if checkedRuns.contains(run.id) {checkedRuns.remove(run.id)} else {checkedRuns.insert(run.id)}
                                         } label: {
@@ -257,6 +271,7 @@ struct TasksView:View {
                                             .accessibilityValue(checkedRuns.contains(run.id) ? "Отмечен":"Не отмечен")
                                             .accessibilityIdentifier("run-check-\(run.id)")
                                             .help("Изменить отметку только этого запуска")
+                                        }
                                         VStack(alignment:.leading,spacing:4) {
                                             RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
                                             if store.tasks.first(where:{$0.id==run.taskID})?.task.typeID==nil {
@@ -285,6 +300,7 @@ struct TasksView:View {
                         }
                     }
                     HStack(spacing:8) {
+                        if selectionMode {
                         Button {
                             checkedRuns=runsToAssign.count==shownRuns.count ? []:Set(shownRuns.map(\.id))
                         } label: {
@@ -292,6 +308,7 @@ struct TasksView:View {
                         }.help("Выбрать или снять выбор показанных запусков (\(shownRuns.count))")
                             .accessibilityLabel("Выбрать показанные запуски").accessibilityIdentifier("run-select-visible")
                             .disabled(shownRuns.isEmpty)
+                        }
                         Text(checkedRuns.isEmpty ? "Найдено: \(filteredRuns.count)":"Выбрано: \(runsToAssign.count)")
                             .monospacedDigit().accessibilityIdentifier("run-selection-count")
                         Spacer(minLength:0)
@@ -305,15 +322,44 @@ struct TasksView:View {
                     }.font(.caption).controlSize(.small).frame(height:28)
                 } else {
                     TaskListControls(sort:$taskSort,ascending:$taskAscending,status:$taskStatus,kind:$taskKind)
+                    if unclassifiedCount>0 || taskKind=="unclassified" {
+                        Button {
+                            if taskKind=="unclassified" {taskKind=""}
+                            else {filter="";taskStatus="";taskKind="unclassified"}
+                        } label:{
+                            HStack(spacing:6) {
+                                Image(systemName:"tag")
+                                Text("Без типа · \(unclassifiedCount)").monospacedDigit()
+                                if taskKind=="unclassified" {Image(systemName:"xmark.circle.fill")}
+                            }.font(.caption.weight(.semibold)).padding(.horizontal,10).padding(.vertical,6)
+                                .foregroundStyle(taskKind=="unclassified" ? Color.white:MeterTheme.warning)
+                                .background(taskKind=="unclassified" ? Color(red:0.48,green:0.26,blue:0):MeterTheme.warning.opacity(0.12),in:Capsule())
+                        }.buttonStyle(.plain).help(taskKind=="unclassified" ? "Показать все типы":"Показать все задачи без типа")
+                            .accessibilityLabel("Задачи без типа: \(unclassifiedCount)")
+                            .accessibilityValue(taskKind=="unclassified" ? "Фильтр включён":"Фильтр выключен")
+                            .accessibilityIdentifier("task-unclassified-filter")
+                    }
                     List(selection:$selected) {
                         ForEach(visibleTasks) {summary in
                             HStack(spacing:4) {
+                                if selectionMode {
                                 TaskCheckButton(title:summary.task.title,id:summary.id,checked:checkedTasks.contains(summary.id)) {
                                     if checkedTasks.contains(summary.id) {checkedTasks.remove(summary.id)} else {checkedTasks.insert(summary.id)}
                                 }
+                                }
                                 VStack(alignment:.leading,spacing:6) {
                                     Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
-                                    HStack{Text(summary.task.typeLabel).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
+                                    HStack {
+                                        if summary.task.typeID==nil {
+                                            Label("Без типа",systemImage:"tag").fontWeight(.semibold)
+                                                .padding(.horizontal,6).padding(.vertical,3)
+                                                .foregroundStyle(MeterTheme.warning)
+                                                .background(MeterTheme.background,in:Capsule())
+                                                .overlay(Capsule().strokeBorder(MeterTheme.warning.opacity(0.6)))
+                                                .accessibilityIdentifier("task-unclassified-badge-\(summary.id)")
+                                        } else {Text(summary.task.typeLabel).lineLimit(1)}
+                                        Spacer();Text(Format.status(summary.task.status))
+                                    }.font(.caption2).foregroundStyle(.primary)
                                     HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
                                     if let dollars=store.exchangeRate?.dollars(for:summary.rubles ?? summary.measuredRubles) {
                                         Text("≈ "+Format.usd(dollars)+(summary.rubles == nil ? " учтено":"")+((store.exchangeRate?.isStale() == true || store.exchangeRateIssue != nil) ? " · сохранённый курс":""))
@@ -336,11 +382,13 @@ struct TasksView:View {
                             }.frame(maxWidth:.infinity,maxHeight:.infinity)
                         }
                     }
+                    if selectionMode {
                     TaskBatchBar(count:tasksToActOn.count,total:visibleTasks.count,busy:store.isPerformingAction,selectAll:{
                         checkedTasks=tasksToActOn.count==visibleTasks.count ? []:Set(visibleTasks.map(\.id))
                     },clear:{checkedTasks=[]},action:{kind in
                         taskBatch=TaskBatchRequest(tasks:tasksToActOn,kind:kind)
                     })
+                    }
                     HStack {
                         Text("Найдено: \(visibleTasks.count) из \(store.tasks.count)")
                         Spacer()
@@ -349,7 +397,9 @@ struct TasksView:View {
                         }
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Флажки выбирают задачи. Открытие карточки сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                if selectionMode {
+                    Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Флажки выбирают задачи. Открытие карточки сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                }
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {

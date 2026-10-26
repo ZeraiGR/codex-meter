@@ -112,7 +112,9 @@ import MeterCore
             let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:code)!
             if !window.performKeyEquivalent(with:event) {NSApp.sendEvent(event)};settle()
         }
-        check(UIAccessibility.find(host,"run-selection-mode")==nil,"Selection needs no separate mode button")
+        check(UIAccessibility.find(host,"run-check-ui-1")==nil && UIAccessibility.find(host,"run-select-visible")==nil,"Run checkboxes start hidden")
+        clickControl("selection-mode-toggle")
+        check(UIAccessibility.find(host,"run-select-visible") != nil,"Icon enables run checkboxes and select-all")
         // Reproduce the reported loss: nine checks, then a miss beside the tenth.
         store.runs=runs+(4...10).map {RunRecord(id:"ui-\($0)",thread:"ui",started:runs[0].started,title:"Дополнительный запуск \($0)")};settle()
         func checkbox(_ index:Int) {
