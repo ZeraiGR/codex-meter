@@ -218,9 +218,13 @@ struct TasksView:View {
                     Button {
                         selectionMode.toggle()
                         if !selectionMode {checkedTasks=[];checkedRuns=[]}
-                    } label:{Image(systemName:"checklist").font(.body.weight(selectionMode ? .bold:.regular))}
-                        .tint(selectionMode ? Color.accentColor:nil)
-                        .background(selectionMode ? Color.accentColor.opacity(0.18):Color.clear,in:RoundedRectangle(cornerRadius:6))
+                    } label:{
+                        Image(systemName:"checklist").font(.system(size:14,weight:.semibold))
+                            .frame(width:34,height:24)
+                            .foregroundStyle(selectionMode ? Color.white:Color.primary)
+                            .background(selectionMode ? Color(red:0,green:0.32,blue:0.72):MeterTheme.background,in:RoundedRectangle(cornerRadius:6))
+                            .overlay(RoundedRectangle(cornerRadius:6).strokeBorder(selectionMode ? Color.clear:MeterTheme.secondary.opacity(0.4)))
+                    }.buttonStyle(.plain)
                         .help(selectionMode ? "Выключить массовый выбор и снять отметки":"Включить массовый выбор")
                         .accessibilityLabel("Массовый выбор").accessibilityValue(selectionMode ? "Включён":"Выключен")
                         .accessibilityIdentifier("selection-mode-toggle")
@@ -397,8 +401,8 @@ struct TasksView:View {
                         }
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
-                if selectionMode {
-                    Text(showUnassigned ? "Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.":"Флажки выбирают задачи. Открытие карточки сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                if selectionMode && showUnassigned {
+                    Text("Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {

@@ -142,6 +142,8 @@ import MeterCore
         UIAccessibility.press(UIAccessibility.find(host,"selection-mode-toggle"));settle()
         UIAccessibility.press(UIAccessibility.find(host,"task-select-visible"));settle()
         check(selectedCount()=="Выбрано: 2","Unclassified tasks can be selected together for classification")
+        check(table.visibleRect.height>=220,"Unclassified filter and selection mode preserve usable list height")
+        UIAccessibility.capture(host,"task-unclassified-selection")
         store.tasks[0].task.typeID="release";store.tasks[1].task.typeID="development";settle()
         check(table.numberOfRows==0 && selectedCount()=="Выбрано: 0" && UIAccessibility.find(host,"task-unclassified-filter") != nil,"Classified tasks leave the selection while the empty shortcut can still be switched off")
         UIAccessibility.press(UIAccessibility.find(host,"task-unclassified-filter"));settle()
