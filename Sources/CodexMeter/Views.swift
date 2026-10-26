@@ -179,6 +179,7 @@ struct TasksView:View {
     @State private var taskKind=""
     @State private var runTypeFilter=""
     @State private var runFiltersOpen=false
+    @State private var managingTypes=false
     @State private var onlyUnassigned=true
     @State private var includeService=false
     @State private var limit=100
@@ -208,6 +209,8 @@ struct TasksView:View {
                 HStack {
                     TextField(showUnassigned ? "Поиск по запросам и ответам":"Поиск задачи или типа",text:Binding(get:{filter},set:{filter=$0;limit=100})).textFieldStyle(.roundedBorder)
                     Button{editing=WorkTask(title:"",kind:"")}label:{Image(systemName:"plus")}.help("Создать задачу")
+                    Button("Типы",systemImage:"tag"){managingTypes=true}.help("Типы задач")
+                        .accessibilityIdentifier("task-types-open")
                 }
                 Picker("Список",selection:$showUnassigned){Text("Задачи").tag(false);Text("Запуски").tag(true)}.pickerStyle(.segmented).labelsHidden()
                 if store.loadingHistory {ProgressView("Обновляем историю…").controlSize(.small)}
@@ -407,6 +410,10 @@ struct TasksView:View {
         .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || previewRun != nil}}
         .onChange(of:filter){_,_ in searchMatches=[]}
         .onChange(of:runTypeFilter){_,_ in searchMatches=[];searchRevision += 1}
+        .onChange(of:store.taskTypes.map(\.id)) {_,ids in
+            if !taskKind.isEmpty && taskKind != "unclassified" && !ids.contains(taskKind) {taskKind=""}
+            if !runTypeFilter.isEmpty && runTypeFilter != "unclassified" && !ids.contains(runTypeFilter) {runTypeFilter=""}
+        }
         .onChange(of:shownRuns.map(\.id)){_,ids in
             checkedRuns.formIntersection(ids)
             if let previewRun,!ids.contains(previewRun) {self.previewRun=nil}
@@ -431,6 +438,7 @@ struct TasksView:View {
             if let target {selected=target}
         })}
         .sheet(item:$editing){task in TaskEditor(task:task)}
+        .sheet(isPresented:$managingTypes){TaskTypesSheet()}
         .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns.subtract(selection.runs.map(\.id))})}
     }
     func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
@@ -691,7 +699,6 @@ struct SettingsView:View {
                         if savedAlertSettings==alertSettingsKey {Label("Сохранено",systemImage:"checkmark").font(.caption).foregroundStyle(MeterTheme.accent)}
                     }
                 }
-                Card {TaskTypesManager()}
                 SoftwareUpdateCard(updater:store.updates)
                 ConnectionCard()
                 Card {

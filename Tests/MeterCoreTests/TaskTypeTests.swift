@@ -10,7 +10,9 @@ extension MeterCoreTests {
         XCTAssertNil(try db.task(task.id)?.typeID)
         XCTAssertEqual(try db.task(task.id)?.kind,"project-docs")
         XCTAssertEqual(try db.task(task.id)?.typeLabel,"Тип не указан")
-        XCTAssertEqual(try db.taskTypes().count,6)
+        XCTAssertTrue(try db.taskTypes().isEmpty)
+        try db.saveTaskType(TaskType(id:"documentation",name:"Документация"))
+        try db.saveTaskType(TaskType(id:"review",name:"Ревью"))
         try db.assignTaskType([task.id],typeID:"documentation")
         XCTAssertEqual(try db.task(task.id)?.legacyKind,"project-docs")
         var type=try XCTUnwrap(try db.taskTypes().first{$0.id=="documentation"})
@@ -36,6 +38,7 @@ extension MeterCoreTests {
 
     func testSkillNeverImplicitlyClassifiesTaskAndForecastRequiresType() throws {
         let db=try database();defer{try? FileManager.default.removeItem(at:db.directory)}
+        try db.saveTaskType(TaskType(id:"review",name:"Ревью"))
         let base=["task-start","--thread","t","--turn","one","--title","Результат"]
         let old=try Codec.decode(WorkTask.self,Commands.run(base+["--kind","review"],directory:db.directory))
         XCTAssertNil(old.typeID)
@@ -54,4 +57,37 @@ extension MeterCoreTests {
         let hook=try Commands.run(["hook"],directory:db.directory,input:Data("{\"session_id\":\"t\",\"turn_id\":\"next\"}".utf8))
         XCTAssertFalse(hook.contains("--kind <skill-name>"));XCTAssertTrue(hook.contains("A skill is NOT a task type"))
     }
+    func testDeletingTaskTypePreservesHistoryAndStaysEmptyOnReopen() throws {
+        let db=try database();defer{try? FileManager.default.removeItem(at:db.directory)}
+        XCTAssertTrue(try db.taskTypes().isEmpty)
+        let type=TaskType(id:"custom",name:"Мой тип")
+        try db.saveTaskType(type)
+        for id in ["one","two"] {
+            var task=WorkTask(id:id,title:id,kind:"",status:"completed",created:epoch,finished:epoch)
+            task.typeID=type.id;try db.saveTask(task)
+        }
+        try db.saveRun(RunRecord(id:"run",thread:"thread",started:epoch,tokens:.init(input:123),taskID:"one"))
+        let before=try db.query("SELECT * FROM turns ORDER BY id")
+        try db.exec("CREATE TRIGGER reject_type_clear BEFORE UPDATE ON tasks WHEN NEW.id='two' BEGIN SELECT RAISE(ABORT,'test failure'); END")
+        XCTAssertThrowsError(try db.deleteTaskType(type.id))
+        XCTAssertEqual(try db.task("one")?.typeID,type.id)
+        XCTAssertEqual(try db.taskTypes(),[type])
+        try db.exec("DROP TRIGGER reject_type_clear")
+        try db.deleteTaskType(type.id)
+        XCTAssertTrue(try db.taskTypes().isEmpty)
+        XCTAssertEqual(try db.tasks().count,2)
+        XCTAssertNil(try db.task("one")?.typeID)
+        XCTAssertEqual(try db.task("one")?.legacyKind,type.name)
+        XCTAssertEqual(try db.task("one")?.status,"completed")
+        XCTAssertEqual(try db.task("one")?.created,epoch)
+        XCTAssertEqual(try db.task("one")?.finished,epoch)
+        XCTAssertEqual(try db.query("SELECT * FROM turns ORDER BY id"),before)
+        XCTAssertEqual(try db.summaries().first{$0.id=="one"}?.tokens.total,123)
+        let reopened=try Database(directory:db.directory)
+        XCTAssertTrue(try reopened.taskTypes().isEmpty)
+        XCTAssertNil(try reopened.task("one")?.typeID)
+        XCTAssertThrowsError(try reopened.assignTaskType(["one"],typeID:type.id))
+        XCTAssertThrowsError(try reopened.deleteTaskType(type.id))
+    }
+
 }
