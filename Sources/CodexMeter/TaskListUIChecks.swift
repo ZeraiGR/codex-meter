@@ -8,7 +8,7 @@ import MeterCore
         setenv("CODEX_METER_HOME",directory.path,1)
         defer {if let old {setenv("CODEX_METER_HOME",old,1)} else {unsetenv("CODEX_METER_HOME")};try? FileManager.default.removeItem(at:directory)}
         let store=MeterStore(startServices:false),now=Date()
-        store.taskTypes.append(TaskType(id:"release",name:"Релиз"))
+        store.taskTypes=[TaskType(id:"release",name:"Релиз"),TaskType(id:"development",name:"Разработка")]
         store.tasks=(0..<1200).map { i in
             var task=WorkTask(id:"task-\(i)",title:i==1199 ? "Разработка редактора документов":"Проверка API заказов — выпуск \(i)",kind:i % 2 == 0 ? "Релиз":"Разработка",status:i % 3 == 0 ? "completed":"paused",created:now.addingTimeInterval(-Double(i)*60))
             task.typeID=i % 2 == 0 ? "release":"development"

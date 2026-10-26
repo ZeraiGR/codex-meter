@@ -29,6 +29,7 @@ import MeterCore
         let run=RunRecord(id:"chooser-run",thread:"chooser",started:now,title:"Проверь обработку ошибок перед выпуском версии")
         do {
             let db=try Database()
+            try db.saveTaskType(TaskType(id:"review",name:"Ревью"))
             try db.saveTaskType(TaskType(id:"security",name:"Проверка безопасности"))
             try db.saveTaskType(TaskType(id:"interface",name:"Ревью интерфейса"))
             for task in tasks {try db.saveTask(task)}

@@ -17,9 +17,6 @@ public final class Database {
         try exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS task_types (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
-        try transaction {
-            if try taskTypes().isEmpty {for type in TaskType.defaults {try saveTaskType(type)}}
-        }
         try exec("CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, thread TEXT NOT NULL, task_id TEXT, started REAL NOT NULL, data TEXT NOT NULL)")
         try exec("CREATE INDEX IF NOT EXISTS turns_thread ON turns(thread)")
         try exec("CREATE TABLE IF NOT EXISTS bindings (thread TEXT NOT NULL, turn TEXT NOT NULL, task_id TEXT NOT NULL, PRIMARY KEY(thread,turn))")

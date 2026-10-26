@@ -5,11 +5,6 @@ public struct TaskType:Codable,Identifiable,Equatable {
     public var name:String
     public var archived:Bool
     public init(id:String=UUID().uuidString,name:String,archived:Bool=false){self.id=id;self.name=name;self.archived=archived}
-    public static let defaults:[TaskType] = [
-        .init(id:"development",name:"Разработка"),.init(id:"bugfix",name:"Исправление ошибки"),
-        .init(id:"review",name:"Ревью"),.init(id:"research",name:"Исследование"),
-        .init(id:"documentation",name:"Документация"),.init(id:"maintenance",name:"Настройка и обслуживание")
-    ]
 }
 
 extension WorkTask {
@@ -38,6 +33,17 @@ extension Database {
                 task.typeID=typeID
                 try saveTask(task)
             }
+        }
+    }
+    public func deleteTaskType(_ id:String) throws {
+        try transaction {
+            guard try taskTypes().contains(where:{$0.id==id}) else {throw MeterError("Тип больше не существует")}
+            for var task in try tasks() where task.typeID==id {
+                if task.legacyKind==nil {task.legacyKind=task.kind}
+                task.typeID=nil;task.kind=""
+                try saveTask(task)
+            }
+            try exec("DELETE FROM task_types WHERE id=?",[id])
         }
     }
     func resolveType(_ task:WorkTask,types:[TaskType])->WorkTask {
