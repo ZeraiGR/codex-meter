@@ -185,6 +185,9 @@ public struct WorkTask: Codable, Identifiable {
     public var created: Date
     public var finished: Date?
     public var skillVersion: String?
+    public var typeID: String?
+    public var skill: String?
+    public var legacyKind: String?
     public init(id: String = UUID().uuidString, title: String, kind: String, status: String = "active", created: Date = Date(), finished: Date? = nil, skillVersion: String? = nil) {
         self.id=id;self.title=title;self.kind=kind;self.status=status;self.created=created;self.finished=finished;self.skillVersion=skillVersion
     }

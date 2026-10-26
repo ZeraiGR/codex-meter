@@ -24,9 +24,13 @@ import MeterCore
         }
         tasks[1199].title="Уникальный проект";tasks[1199].kind="Проверка безопасности";tasks[1199].status="completed"
         tasks[1198].title="Уникальный проект";tasks[1198].kind="Ревью интерфейса"
+        for i in tasks.indices {tasks[i].typeID="review"}
+        tasks[1199].typeID="security";tasks[1198].typeID="interface"
         let run=RunRecord(id:"chooser-run",thread:"chooser",started:now,title:"Проверь обработку ошибок перед выпуском версии")
         do {
             let db=try Database()
+            try db.saveTaskType(TaskType(id:"security",name:"Проверка безопасности"))
+            try db.saveTaskType(TaskType(id:"interface",name:"Ревью интерфейса"))
             for task in tasks {try db.saveTask(task)}
             try db.saveRun(run)
         } catch {check(false,"Create isolated task chooser fixture: \(error)");return false}

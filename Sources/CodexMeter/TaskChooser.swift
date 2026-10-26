@@ -22,9 +22,9 @@ struct TaskChoice: Identifiable, Equatable {
     }
     init(_ summary: TaskSummary) {
         let task=summary.task
-        id=task.id;title=task.title;kind=task.kind;status=task.status;runCount=summary.runs.count
+        id=task.id;title=task.title;kind=task.typeLabel;status=task.status;runCount=summary.runs.count
         activity=max(task.created,task.finished ?? task.created,summary.runs.map { $0.ended ?? $0.started }.max() ?? task.created)
-        searchText=Self.normalize(task.title+" "+task.kind)
+        searchText=Self.normalize(task.title+" "+task.typeLabel)
     }
     static func normalize(_ value:String)->String {
         value.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ru_RU"))

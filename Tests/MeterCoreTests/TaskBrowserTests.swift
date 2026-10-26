@@ -3,7 +3,8 @@ import MeterCore
 
 extension MeterCoreTests {
     private func browserTask(_ id:String,tokens:Int64,seconds:Double,cost:Double?,status:String="paused",kind:String="Разработка")->TaskSummary {
-        let task=WorkTask(id:id,title:id,kind:kind,status:status,created:epoch)
+        var task=WorkTask(id:id,title:id,kind:kind,status:status,created:epoch)
+        task.typeID=kind
         let run=RunRecord(id:id,thread:id,started:epoch,ended:epoch.addingTimeInterval(seconds),tokens:.init(input:tokens),taskID:id)
         return TaskSummary(task:task,runs:[run],quotaPoints:nil,rubles:cost,quotaQuality:"")
     }
@@ -17,7 +18,7 @@ extension MeterCoreTests {
     }
     func testTaskFiltersCombineStatusKindAndWordsWithoutLosingSelectionIdentity() {
         let tasks=[browserTask("API заказов",tokens:1,seconds:1,cost:nil,status:"completed",kind:"Code Review"),browserTask("API клиентов",tokens:2,seconds:2,cost:nil,status:"paused",kind:"Code Review"),browserTask("Релиз",tokens:3,seconds:3,cost:nil,status:"completed",kind:"Разработка")]
-        XCTAssertEqual(TaskListQuery.apply(tasks,query:"review API",status:"completed",kind:"code").map(\.id),["API заказов"])
+        XCTAssertEqual(TaskListQuery.apply(tasks,query:"review API",status:"completed",kind:"Code Review").map(\.id),["API заказов"])
         XCTAssertEqual(TaskListQuery.apply(tasks,kind:"несуществующий").count,0)
         XCTAssertEqual(Set(TaskListQuery.apply(tasks,sort:.tokens,ascending:true).map(\.id)),Set(tasks.map(\.id)))
     }

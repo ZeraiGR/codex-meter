@@ -16,6 +16,10 @@ public final class Database {
         try exec("PRAGMA journal_mode=WAL")
         try exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+        try exec("CREATE TABLE IF NOT EXISTS task_types (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+        try transaction {
+            if try taskTypes().isEmpty {for type in TaskType.defaults {try saveTaskType(type)}}
+        }
         try exec("CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, thread TEXT NOT NULL, task_id TEXT, started REAL NOT NULL, data TEXT NOT NULL)")
         try exec("CREATE INDEX IF NOT EXISTS turns_thread ON turns(thread)")
         try exec("CREATE TABLE IF NOT EXISTS bindings (thread TEXT NOT NULL, turn TEXT NOT NULL, task_id TEXT NOT NULL, PRIMARY KEY(thread,turn))")
@@ -65,9 +69,23 @@ public final class Database {
 
     public func value(_ key: String) throws -> String? { try query("SELECT value FROM kv WHERE key=?",[key]).first?["value"] }
     public func set(_ key: String, _ value: String) throws { try exec("INSERT INTO kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[key,value]) }
-    public func saveTask(_ task: WorkTask) throws { try exec("INSERT INTO tasks VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",[task.id,try Codec.encode(task)]) }
-    public func tasks() throws -> [WorkTask] { try query("SELECT data FROM tasks").map { try Codec.decode(WorkTask.self,$0["data"]!) }.sorted { $0.created > $1.created } }
-    public func task(_ id: String) throws -> WorkTask? { try query("SELECT data FROM tasks WHERE id=?",[id]).first.map { try Codec.decode(WorkTask.self,$0["data"]!) } }
+    public func saveTask(_ task: WorkTask) throws {
+        var task=task
+        if task.typeID != nil,task.legacyKind==nil,let previous=try self.task(task.id),previous.typeID==nil,!previous.kind.isEmpty {task.legacyKind=previous.kind}
+        if let id=task.typeID {
+            guard let type=try taskTypes().first(where:{$0.id==id}),try !type.archived || self.task(task.id)?.typeID==id else {throw MeterError("Выберите действующий тип из справочника")}
+        }
+        task=resolveType(task,types:try taskTypes())
+        try exec("INSERT INTO tasks VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",[task.id,try Codec.encode(task)])
+    }
+    public func tasks() throws -> [WorkTask] {
+        let types=try taskTypes()
+        return try query("SELECT data FROM tasks").map {resolveType(try Codec.decode(WorkTask.self,$0["data"]!),types:types)}.sorted { $0.created > $1.created }
+    }
+    public func task(_ id: String) throws -> WorkTask? {
+        let types=try taskTypes()
+        return try query("SELECT data FROM tasks WHERE id=?",[id]).first.map {resolveType(try Codec.decode(WorkTask.self,$0["data"]!),types:types)}
+    }
     public func bind(thread: String, turn: String, task: String) throws {
         guard try self.task(task) != nil else { throw MeterError("Задача не найдена") }
         try exec("INSERT INTO bindings VALUES (?,?,?) ON CONFLICT(thread,turn) DO UPDATE SET task_id=excluded.task_id",[thread,turn,task])

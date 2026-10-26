@@ -8,6 +8,7 @@ import MeterCore
 @MainActor final class MeterStore:ObservableObject {
     @Published var snapshot:AccountSnapshot?
     @Published var tasks:[TaskSummary]=[]
+    @Published var taskTypes:[TaskType]=[]
     @Published var runs:[RunRecord]=[]
     @Published var payments:[Payment]=[]
     @Published var error:String?
@@ -50,7 +51,7 @@ import MeterCore
     init(startServices:Bool = true) {
         updates=UpdateController(enabled:startServices)
         do {
-            let db=try Database();snapshot=try db.snapshot();payments=try db.payments()
+            let db=try Database();snapshot=try db.snapshot();payments=try db.payments();taskTypes=try db.taskTypes()
             exchangeRate=try USDExchangeRate.cached(in:db)
             notifications=try db.value("notifications") != "false"
             let issue=try db.value("notificationIssue") ?? ""
@@ -104,9 +105,9 @@ import MeterCore
             do {
                 let result=try await Task.detached(priority:.utility) { [directory] in
                     let db=try Database(directory:directory);_ = try Journal.sync(db:db)
-                    return (try db.summaries(),try db.runs(),try db.payments())
+                    return (try db.summaries(),try db.runs(),try db.payments(),try db.taskTypes())
                 }.value
-                tasks=result.0;runs=result.1;payments=result.2;historyLoaded=true
+                tasks=result.0;runs=result.1;payments=result.2;taskTypes=result.3;historyLoaded=true
             } catch {self.error=error.localizedDescription}
             localBusy=false;loadingHistory=false
         }
@@ -166,10 +167,10 @@ import MeterCore
                     // failed recalculation must leave the dialog safe to retry.
                     return try db.transaction {
                         try operation(db)
-                        return (try db.summaries(),try db.runs(),try db.payments())
+                        return (try db.summaries(),try db.runs(),try db.payments(),try db.taskTypes())
                     }
                 }.value
-                tasks=result.0;runs=result.1;payments=result.2;historyLoaded=true
+                tasks=result.0;runs=result.1;payments=result.2;taskTypes=result.3;historyLoaded=true
                 completion(.success(()))
             } catch {completion(.failure(error))}
         }

@@ -8,6 +8,7 @@ extension TaskSort {
 }
 
 struct TaskListControls:View {
+    @EnvironmentObject var store:MeterStore
     @Binding var sort:TaskSort
     @Binding var ascending:Bool
     @Binding var status:String
@@ -36,10 +37,11 @@ struct TaskListControls:View {
                             Text("Отменена").tag("cancelled")
                             Text("Не удалась").tag("failed")
                         }.accessibilityIdentifier("task-list-status")
-                        VStack(alignment:.leading,spacing:5) {
-                            Text("Тип содержит").font(.caption)
-                            TextField("Например: code-review",text:$kind).textFieldStyle(.roundedBorder).accessibilityIdentifier("task-list-kind")
-                        }
+                        Picker("Тип задачи",selection:$kind) {
+                            Text("Все типы").tag("")
+                            Text("Тип не указан").tag("unclassified")
+                            ForEach(store.taskTypes){type in Text(type.name+(type.archived ? " · архив":"")).tag(type.id)}
+                        }.accessibilityIdentifier("task-list-kind")
                         HStack {
                             Button("Сбросить") {status="";kind=""}.disabled(filterCount==0)
                             Spacer()

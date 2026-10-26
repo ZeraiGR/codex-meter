@@ -7,13 +7,15 @@ public enum Commands {
     refresh                        Refresh account limits and daily history
     sync                           Import local token events
     tasks                          List user tasks and their metrics
-    task-start --thread ID --turn ID --title TEXT --kind TYPE [--skill-version HASH]
+    task-start --thread ID --turn ID --title TEXT [--type-id ID] [--skill NAME]
     task-resume --id ID --thread ID --turn ID
     task-end --id ID [--outcome completed|cancelled|failed]
     task-pause --id ID
     task-assign --id ID --thread ID --turn ID
     task-merge --source ID --target ID
-    forecast --kind TYPE [--model MODEL]
+    task-types                     List configured task types
+    task-type --id ID --type-id TYPE_ID
+    forecast [--type-id ID] [--model MODEL]
     payment --amount RUB --start YYYY-MM-DD --end YYYY-MM-DD
     hook                           UserPromptSubmit hook; reads JSON stdin
     """
@@ -33,21 +35,25 @@ public enum Commands {
         case "refresh":
             let snapshot=try CodexClient.fetch(db:db);try db.saveSnapshot(snapshot);return try Codec.encode(snapshot)
         case "sync":return "{\"updatedFiles\":\(try Journal.sync(db:db))}"
+        case "task-types":return try Codec.encode(db.taskTypes())
+        case "task-type":try db.assignTaskType([required("id")],typeID:required("type-id"));return "{\"ok\":true}"
         case "tasks":
             let values=try db.summaries().map { s -> [String:Any] in
-                ["id":s.id,"title":s.task.title,"kind":s.task.kind,"status":s.task.status,"tokens":s.tokens.total,"seconds":s.activeSeconds,"quotaPoints":s.quotaPoints as Any? ?? NSNull(),"rubles":s.rubles as Any? ?? NSNull(),"quality":s.quotaQuality,"measuredRubles":s.measuredRubles as Any? ?? NSNull(),"costCoverage":s.costCoverage as Any? ?? NSNull(),"projectedRubles":s.projectedRubles as Any? ?? NSNull(),"weeklyQuota":s.weeklyQuota.map{["points":$0.points,"coverage":$0.coverage,"windowCount":$0.windowCount] as [String:Any]} as Any? ?? NSNull()]
+                ["id":s.id,"title":s.task.title,"kind":s.task.typeLabel,"typeID":s.task.typeID as Any? ?? NSNull(),"needsType":s.task.typeID==nil,"status":s.task.status,"tokens":s.tokens.total,"seconds":s.activeSeconds,"quotaPoints":s.quotaPoints as Any? ?? NSNull(),"rubles":s.rubles as Any? ?? NSNull(),"quality":s.quotaQuality,"measuredRubles":s.measuredRubles as Any? ?? NSNull(),"costCoverage":s.costCoverage as Any? ?? NSNull(),"projectedRubles":s.projectedRubles as Any? ?? NSNull(),"weeklyQuota":s.weeklyQuota.map{["points":$0.points,"coverage":$0.coverage,"windowCount":$0.windowCount] as [String:Any]} as Any? ?? NSNull()]
             }
             return String(decoding:try JSONSerialization.data(withJSONObject:values,options:[.sortedKeys]),as:UTF8.self)
         case "task-start":
-            let thread=try required("thread"),turn=try required("turn"),title=try required("title"),kind=try required("kind")
+            let thread=try required("thread"),turn=try required("turn"),title=try required("title"),kind=option("kind") ?? ""
             let task:WorkTask=try db.transaction {
                 if var active=try db.activeTask(thread:thread) {
-                    if active.title==title && active.kind==kind {
+                    if active.title==title {
+                        if let typeID=option("type-id") {active.typeID=typeID}
                         active.status="active";try db.saveTask(active);try db.bind(thread:thread,turn:turn,task:active.id);return active
                     }
                     active.status="paused";try db.saveTask(active)
                 }
-                let task=WorkTask(title:title,kind:kind,skillVersion:option("skill-version"))
+                var task=WorkTask(title:title,kind:kind,skillVersion:option("skill-version"))
+                task.typeID=option("type-id");task.skill=option("skill")
                 try db.saveTask(task);try db.bind(thread:thread,turn:turn,task:task.id);try db.set("active:\(thread)",task.id)
                 return task
             }
@@ -71,7 +77,10 @@ public enum Commands {
         case "task-merge":try db.mergeTasks(source:required("source"),target:required("target"));return "{\"ok\":true}"
         case "forecast":
             let snapshot=try db.snapshot(),payment=try db.payments().first{$0.contains(Date())}
-            return try Codec.encode(Predictor.estimate(kind:required("kind"),history:db.summaries(),snapshot:snapshot,payment:payment,model:option("model")))
+            let type=try db.taskTypes().first{$0.id==option("type-id")}
+            if option("type-id") != nil && type==nil {throw MeterError("Тип не найден в справочнике")}
+            let history=try db.summaries().filter{type != nil && $0.task.typeID==type?.id}
+            return try Codec.encode(Predictor.estimate(kind:type?.name ?? "Тип не указан",history:history,snapshot:snapshot,payment:payment,model:option("model")))
         case "payment":
             let fmt=DateFormatter();fmt.locale=Locale(identifier:"en_US_POSIX");fmt.dateFormat="yyyy-MM-dd";fmt.isLenient=false
             guard let amount=Double(try required("amount").replacingOccurrences(of:",",with:".")),let start=fmt.date(from:try required("start")),let end=fmt.date(from:try required("end")) else {throw MeterError("Проверьте сумму и даты YYYY-MM-DD")}
@@ -88,10 +97,10 @@ public enum Commands {
         var context="""
         Codex Meter tracks user-level tasks locally. Current thread=\(thread), turn=\(turn).
         CLI executable: \(binary). Quote paths/arguments safely.
-        For work performed with a skill, automatically call task-start --thread <thread> --turn <turn> --title <specific user outcome> --kind <skill-name> before substantial work, then forecast --kind <skill-name> --model <current model>. Warn concisely if risk is high/caution; never promise sufficient quota when unknown. Tracking failure must not block user work.
+        For work performed with a skill, automatically call task-start --thread <thread> --turn <turn> --title <specific user outcome> --skill <skill-name> before substantial work. A skill is NOT a task type. Leave the type unassigned unless the user explicitly identifies it; use task-types and --type-id <existing ID> only for an explicit classification. Never create types from skill names. Run forecast --model <current model>, adding --type-id only when classified. Warn concisely if risk is high/caution; never promise sufficient quota when unknown. Tracking failure must not block user work.
         For other work, start tracking when the user asks to start a task (e.g. «начинаем задачу …»). Reuse the same task for clarifications/retries/continuations; a response ending is not task completion. task-pause --id ID when waiting for user input; task-end --id ID only when the intended outcome is delivered (or --outcome cancelled/failed). Use task-resume --id ID --thread <thread> --turn <turn> to continue across sessions. Child agents belong to their parent's task, not new tasks. Do not start a task solely for a nested helper skill.
         """
-        if let active {context += "\nExisting task: \(active.id); kind=\(active.kind); title=\(active.title). Continue it unless the user starts a distinct task."}
+        if let active {context += "\nExisting task: \(active.id); type=\(active.typeLabel); typeID=\(active.typeID ?? "unassigned"); title=\(active.title). Continue it unless the user starts a distinct task."}
         if let snapshot=try db.snapshot(),snapshot.fresh(),let window=snapshot.moneyWindow,window.valid(at:Date()) {
             context += "\nCached remaining main quota: \(Int(window.remaining))%, window \(window.label). This is quota, not a remaining token count."
         }

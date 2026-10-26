@@ -8,8 +8,10 @@ import MeterCore
         setenv("CODEX_METER_HOME",directory.path,1)
         defer {if let old {setenv("CODEX_METER_HOME",old,1)} else {unsetenv("CODEX_METER_HOME")};try? FileManager.default.removeItem(at:directory)}
         let store=MeterStore(startServices:false),now=Date()
+        store.taskTypes.append(TaskType(id:"release",name:"Релиз"))
         store.tasks=(0..<1200).map { i in
-            let task=WorkTask(id:"task-\(i)",title:i==1199 ? "Разработка редактора документов":"Проверка API заказов — выпуск \(i)",kind:i % 2 == 0 ? "Релиз":"Разработка",status:i % 3 == 0 ? "completed":"paused",created:now.addingTimeInterval(-Double(i)*60))
+            var task=WorkTask(id:"task-\(i)",title:i==1199 ? "Разработка редактора документов":"Проверка API заказов — выпуск \(i)",kind:i % 2 == 0 ? "Релиз":"Разработка",status:i % 3 == 0 ? "completed":"paused",created:now.addingTimeInterval(-Double(i)*60))
+            task.typeID=i % 2 == 0 ? "release":"development"
             let run=RunRecord(id:task.id,thread:task.id,started:task.created,ended:task.created.addingTimeInterval(20),tokens:.init(input:Int64((i+1)*10000)),taskID:task.id)
             return TaskSummary(task:task,runs:[run],quotaPoints:nil,rubles:nil,quotaQuality:"Измерено 50% токенов задачи",measuredRubles:126,costCoverage:0.5,weeklyQuota:WeeklyQuotaUsage(points:8.4,coverage:0.5,windowCount:1))
         }
@@ -95,20 +97,15 @@ import MeterCore
         window.setContentSize(NSSize(width:840,height:620));settle()
         check(table.visibleRect.height>=220,"Sorting controls preserve usable task list height at minimum window size")
         UIAccessibility.press(UIAccessibility.find(host,"task-list-filters"));settle()
-        guard let panel=NSApp.windows.first(where:{ w in w.contentView.map{descendants($0).compactMap{$0 as? NSTextField}.contains{$0.placeholderString=="Например: code-review"}} ?? false}),let content=panel.contentView,
-              let kind=descendants(content).compactMap({$0 as? NSTextField}).first(where:{$0.placeholderString=="Например: code-review"}) else {
+        guard let panel=NSApp.windows.first(where:{$0.contentView.map{UIAccessibility.find($0,"task-list-kind") != nil} ?? false}),let content=panel.contentView else {
             check(false,"Task filters open in a native popover");return false
         }
-        func type(_ value:String) {
-            kind.selectText(nil)
-            if let editor=kind.currentEditor() as? NSTextView {editor.setSelectedRange(NSRange(location:0,length:(editor.string as NSString).length));editor.insertText(value,replacementRange:editor.selectedRange())};settle()
-        }
-        type("Релиз")
+        choose(UIAccessibility.find(content,"task-list-kind"),"Релиз")
         choose(UIAccessibility.find(content,"task-list-status"),"Завершена")
         check(table.numberOfRows==200,"Status and type filters combine without altering the underlying tasks")
         store.tasks=store.tasks.map{$0};store.updating=true;settle()
         check(table.numberOfRows==200 && ((sort as? NSPopUpButton)?.titleOfSelectedItem ?? UIAccessibility.value(sort,"accessibilityValue") as? String)=="Токены","Background refresh preserves task sorting and filters")
-        type("такого типа нет")
+        choose(UIAccessibility.find(content,"task-list-kind"),"Тип не указан")
         check(selectedCount()=="Выбрано: 0","Filtering out tasks excludes them from mass actions")
         check(table.numberOfRows==0 && table.visibleRect.height>=220,"Empty task filter keeps a usable list and a recovery action")
         let done=UIAccessibility.find(content,"task-list-filters-done")
