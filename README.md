@@ -193,3 +193,5 @@ labelled provisional, and weekly deadline changes include the previous date and
 observation time. An expired timestamp alone does not prove a quota reset.
 
 Tasks support independent checkboxes, bulk status changes and atomic merging into an existing task. See [the task guide](docs/usage.ru.md#несколько-задач).
+
+Task types use a shared catalog with explicit selection, rename and archive actions. Skill names never classify tasks automatically; legacy types remain unconfirmed until assigned. See [task types](docs/usage.ru.md#справочник-типов-задач).
