@@ -172,7 +172,6 @@ struct TasksView:View {
     @State private var taskBatch:TaskBatchRequest?
     @State private var previewRun:String?=ProcessInfo.processInfo.environment["CODEX_METER_RENDER_RUN"]
     @State private var showUnassigned=false
-    @State private var mergeTarget=""
     @State private var taskSort:TaskSort = .recent
     @State private var taskAscending=false
     @State private var taskStatus=""
@@ -367,7 +366,12 @@ struct TasksView:View {
             ScrollView {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
-                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.typeLabel).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold)).accessibilityIdentifier("task-detail-title");Text(s.task.typeLabel).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        if store.tasks.count>1 {
+                            Button("Объединить с задачей…",systemImage:"arrow.triangle.merge") {
+                                taskBatch=TaskBatchRequest(tasks:[s],kind:.merge)
+                            }.accessibilityIdentifier("task-merge-open")
+                        }
                         if s.task.typeID==nil {
                             Button {editing=s.task} label:{Label("Указать тип задачи",systemImage:"tag")}
                                 .foregroundStyle(MeterTheme.warning).accessibilityIdentifier("task-classify")
@@ -377,16 +381,6 @@ struct TasksView:View {
                         HStack {
                             Button(s.task.status=="completed" ? "Открыть заново":"Завершить") {var task=s.task;task.status=task.status=="completed" ? "active":"completed";task.finished=task.status=="completed" ? Date():nil;save(task)}
                             if s.task.status != "cancelled" {Button("Отменить задачу"){var task=s.task;task.status="cancelled";task.finished=Date();save(task)}}
-                        }
-                        if store.tasks.count>1 {
-                            DisclosureGroup("Объединить с другой задачей") {
-                                VStack(alignment:.leading,spacing:10) {
-                                    TaskChooser(choices:TaskChoice.sorted(store.tasks,excluding:s.id),selection:$mergeTarget)
-                                    Button("Объединить"){let target=mergeTarget;store.merge(s.id,target) {result in
-                                        switch result {case .success:selected=target;mergeTarget="";case .failure(let error):store.error=error.localizedDescription}
-                                    }}.disabled(mergeTarget.isEmpty)
-                                }.padding(.top,8)
-                            }.font(.caption)
                         }
                         if !s.runs.isEmpty {
                             Text("Переписка задачи").font(.headline)
@@ -418,7 +412,6 @@ struct TasksView:View {
             checkedRuns.formIntersection(ids)
             if let previewRun,!ids.contains(previewRun) {self.previewRun=nil}
         }
-        .onChange(of:selected){_,_ in DispatchQueue.main.async { mergeTarget="" }}
         .onChange(of:visibleTasks.map(\.id)) {_,ids in
             checkedTasks.formIntersection(ids)
             if let selected,!ids.contains(selected) {DispatchQueue.main.async { self.selected=nil }}
@@ -435,7 +428,7 @@ struct TasksView:View {
         }
         .sheet(item:$taskBatch){request in TaskBatchEditor(request:request,onSaved:{target in
             checkedTasks.subtract(request.tasks.map(\.id))
-            if let target {selected=target}
+            if let target {filter="";taskStatus="";taskKind="";selected=target}
         })}
         .sheet(item:$editing){task in TaskEditor(task:task)}
         .sheet(isPresented:$managingTypes){TaskTypesSheet()}

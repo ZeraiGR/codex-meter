@@ -65,6 +65,7 @@ struct TaskBatchEditor:View {
     @State private var target=""
     @State private var issue:String?
     private var ids:[String] {request.tasks.map(\.id)}
+    private var singleMerge:Bool {request.kind == .merge && ids.count==1}
     private var destination:TaskSummary? {store.tasks.first{$0.id==target}}
     private var valid:Bool {
         switch request.kind {
@@ -75,11 +76,16 @@ struct TaskBatchEditor:View {
     }
     var body:some View {
         VStack(alignment:.leading,spacing:16) {
-            Text(request.kind.rawValue).font(.title2.weight(.semibold))
-            Text("Выбрано задач: \(ids.count)").font(.headline)
-            DisclosureGroup("Выбранные задачи") {
-                ScrollView {VStack(alignment:.leading,spacing:6){ForEach(request.tasks){Text($0.task.title)}}}.frame(maxHeight:100)
-            }.font(.caption)
+            Text(singleMerge ? "Объединить задачу":request.kind.rawValue).font(.title2.weight(.semibold))
+            if singleMerge,let source=request.tasks.first {
+                Text("Текущая задача: \(source.task.title)").font(.callout).lineLimit(2).help(source.task.title)
+                    .accessibilityIdentifier("task-merge-source")
+            } else {
+                Text("Выбрано задач: \(ids.count)").font(.headline)
+                DisclosureGroup("Выбранные задачи") {
+                    ScrollView {VStack(alignment:.leading,spacing:6){ForEach(request.tasks){Text($0.task.title)}}}.frame(maxHeight:100)
+                }.font(.caption)
+            }
             switch request.kind {
             case .type:
                 TaskTypePicker(selection:$typeID)
@@ -95,15 +101,16 @@ struct TaskBatchEditor:View {
                 Text("Изменится статус всех выбранных задач. Запуски и расход сохранятся.").font(.callout).foregroundStyle(MeterTheme.secondary)
             case .merge:
                 Text("В какую задачу перенести запуски?").font(.headline)
-                TaskChooser(choices:TaskChoice.sorted(store.tasks),selection:$target)
+                TaskChooser(choices:TaskChoice.sorted(store.tasks,excluding:singleMerge ? ids.first:nil),selection:$target,autofocus:true,showsFilters:!singleMerge,confirm:{if valid && !store.isPerformingAction {save()}})
                 if let destination {
-                    Text("В «\(destination.task.title)» будут перенесены все запуски и привязки. Остальные выбранные карточки (\(ids.filter{$0 != target}.count)) будут удалены. Название и статус итоговой задачи сохранятся. Отменить объединение автоматически нельзя.")
+                    Text(singleMerge ? "Запуски и расход текущей задачи перейдут в «\(destination.task.title)». Её название, тип и статус сохранятся, текущая карточка будет удалена. Отменить объединение автоматически нельзя.":"В «\(destination.task.title)» будут перенесены все запуски и привязки. Остальные выбранные карточки (\(ids.filter{$0 != target}.count)) будут удалены. Название и статус итоговой задачи сохранятся. Отменить объединение автоматически нельзя.")
                         .font(.callout).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                 }
             }
             if let issue {Text(issue).foregroundStyle(.red).font(.callout).accessibilityIdentifier("task-batch-error")}
             HStack {
                 Button("Отмена"){dismiss()}.keyboardShortcut(.cancelAction).disabled(store.isPerformingAction)
+                    .accessibilityIdentifier("task-batch-cancel")
                 Spacer()
                 if store.isPerformingAction {ProgressView().controlSize(.small)}
                 Button(request.kind == .merge ? "Объединить":"Применить",action:save)

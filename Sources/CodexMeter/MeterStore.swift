@@ -192,9 +192,6 @@ import MeterCore
             for run in runs {try db.bind(thread:run.thread,turn:run.id,task:task.id)}
         },completion:completion)
     }
-    func merge(_ source:String,_ target:String,completion:@escaping (Result<Void,Error>)->Void) {
-        performAction("Объединяем задачи и пересчитываем статистику…",operation: {try $0.mergeTasks(source:source,target:target)},completion:completion)
-    }
     func saveAlertSettings() throws {
         let parts=thresholds.split(separator:",").map{$0.trimmingCharacters(in:.whitespaces)}
         let values=parts.compactMap(Int.init)
