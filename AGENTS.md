@@ -1,5 +1,7 @@
 # Codex Meter development
 
+- Task lifecycle belongs exclusively to the human. Only explicit app UI actions may change existing task statuses or completion dates. Tracking, hooks, agent work completion, waiting, errors and switching tasks must preserve them. Never call legacy task-end/task-pause or edit the database to bypass this rule.
+
 - Preserve user tasks, payments, run bindings and SQLite history. Tests must use isolated temporary data.
 - Quota percentages are not fixed token allowances. Keep missing measurements and partial estimates explicit.
 - Run `bash scripts/check-quality.sh` for behavior changes. Release changes must pass real update installation and rejection scenarios.

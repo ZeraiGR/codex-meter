@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and modify a frozen schema-v1 fixture without losing unrelated rows."""
+"""Read and save a frozen schema-v1 fixture without automatic lifecycle changes."""
 from pathlib import Path
 import json
 import os
@@ -23,8 +23,14 @@ with tempfile.TemporaryDirectory(prefix="meter-upgrade-data-") as temporary:
         assert len(tasks)==1 and tasks[0]["id"]=="legacy-task" and tasks[0]["tokens"]==1100
         assert tasks[0]["seconds"]==120 and tasks[0]["status"]=="paused"
     assert snapshot()==before,"Opening the old database changed persisted rows"
-    subprocess.run([str(EXE),"task-end","--id","legacy-task"],env=env,check=True,stdout=subprocess.DEVNULL)
+    rejected=subprocess.run([str(EXE),"task-end","--id","legacy-task"],env=env,capture_output=True)
+    assert rejected.returncode!=0 and snapshot()==before,"Legacy agent command changed task state"
+    rejected=subprocess.run([str(EXE),"task-pause","--id","legacy-task"],env=env,capture_output=True)
+    assert rejected.returncode!=0
     after=snapshot()
-    assert all(after[t]==before[t] for t in TABLES if t!="tasks"),"Editing a legacy task changed unrelated data"
-    assert json.loads(after["tasks"][0][1])["status"]=="completed"
-    print("PASS UPGRADE schema-v1 reads, totals, repeat-open and edit preserve existing data")
+    assert after==before,"Rejected lifecycle commands changed existing data"
+    subprocess.run([str(EXE),"task-start","--thread","legacy-thread","--turn","legacy-run","--title","Review API"],env=env,check=True,stdout=subprocess.DEVNULL)
+    after=snapshot()
+    assert all(after[t]==before[t] for t in TABLES if t!="tasks"),"Saving a legacy task changed unrelated data"
+    assert json.loads(after["tasks"][0][1])["status"]=="paused"
+    print("PASS UPGRADE schema-v1 reads, totals, repeat-open, save and rejected lifecycle commands preserve existing data")

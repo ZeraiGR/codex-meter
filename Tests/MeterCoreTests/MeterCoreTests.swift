@@ -153,18 +153,34 @@ final class MeterCoreTests {
         XCTAssertEqual(Predictor.estimate(kind:"code-review",history:[s,s,s],snapshot:snap,payment:nil,model:"other",now:epoch).samples,0)
         XCTAssertEqual(Predictor.estimate(kind:"code-review",history:[s,s,s],snapshot:snap,payment:nil,now:epoch.addingTimeInterval(500)).risk,"unknown")
     }
-    func testTaskCLIReusesAndPausesCorrectly() throws {
+    func testTaskCLITrackingPreservesHumanStatuses() throws {
         let db=try database(),dir=db.directory
         let args=["task-start","--thread","t","--turn","one","--title","Ревью API 1","--kind","code-review"]
         let first=try Codec.decode(WorkTask.self,Commands.run(args,directory:dir))
         let second=try Codec.decode(WorkTask.self,Commands.run(args,directory:dir))
         XCTAssertEqual(first.id,second.id)
         _=try Commands.run(["task-start","--thread","t","--turn","two","--title","Ревью API 2","--kind","code-review"],directory:dir)
-        XCTAssertEqual(try db.task(first.id)?.status,"paused")
+        XCTAssertEqual(try db.task(first.id)?.status,"active")
         _=try Commands.run(["task-resume","--id",first.id,"--thread","u","--turn","three"],directory:dir)
         XCTAssertEqual(try db.activeTask(thread:"u")?.id,first.id)
-        _=try Commands.run(["task-end","--id",first.id],directory:dir)
-        XCTAssertNil(try db.activeTask(thread:"u"))
+        for status in ["active","paused","completed","cancelled","failed"] {
+            var task=first;task.status=status;task.finished=["active","paused"].contains(status) ? nil:epoch
+            try db.saveTask(task)
+            let before=try Codec.encode(try XCTUnwrap(try db.task(first.id)))
+            _=try Commands.run(["task-resume","--id",first.id,"--thread","t","--turn","resume"],directory:dir)
+            let reused=try Codec.decode(WorkTask.self,Commands.run(args,directory:dir))
+            XCTAssertEqual(reused.id,first.id)
+            let hook=try Commands.run(["hook"],directory:dir,input:Data("{\"session_id\":\"t\",\"turn_id\":\"hook\"}".utf8))
+            XCTAssertTrue(hook.contains("Task statuses belong exclusively to the human"))
+            XCTAssertTrue(hook.contains("status=\(status)"))
+            for command in [["task-pause"],["task-end"],["task-end","--outcome","failed"],["task-end","--outcome","cancelled"]] {
+                XCTAssertThrowsError(try Commands.run(command+["--id",first.id],directory:dir))
+            }
+            XCTAssertEqual(try Codec.encode(try XCTUnwrap(try db.task(first.id))),before)
+            XCTAssertEqual(try db.activeTask(thread:"t")?.id,first.id)
+            _=try Commands.run(["task-start","--thread","t","--turn","different","--title","Other \(status)"],directory:dir)
+            XCTAssertEqual(try Codec.encode(try XCTUnwrap(try db.task(first.id))),before)
+        }
     }
     func testHookProvidesTaskContextWithoutNetwork() throws {
         let db=try database()
