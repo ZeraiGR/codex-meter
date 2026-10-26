@@ -202,3 +202,5 @@ Task statuses are controlled only by the human in the app. Tracking, waiting for
 input, agent completion and switching tasks preserve existing statuses and completion
 dates. Since 1.4.14, `task-resume` only binds tracking; `task-end` and `task-pause`
 reject changes. Update both the app and the separately installed integration skill.
+
+Since 1.4.15, tasks without a type have a visible badge and a one-click filter with a count. The checklist icon beside Tasks/Runs toggles bulk-selection checkboxes; turning it off clears checks and preserves the open card.
