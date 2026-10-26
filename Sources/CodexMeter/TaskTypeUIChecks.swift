@@ -61,9 +61,10 @@ import MeterCore
             UIAccessibility.press(UIAccessibility.find(manager,"task-type-archive-documentation"));settle(1)
             check(try db.taskTypes().first{$0.id=="documentation"}?.archived==true,"Catalog can archive a type while preserving task links")
             UIAccessibility.capture(manager,"task-type-catalog")
-            let deletion=NSHostingView(rootView:TaskTypeDeleteEditor(type:TaskType(id:"documentation",name:"Руководства",archived:true)).environmentObject(store).background(MeterTheme.background))
-            window.contentView=deletion;settle()
+            UIAccessibility.press(UIAccessibility.find(manager,"task-type-delete-documentation"));settle()
+            guard let deletion=window.sheets.first?.contentView else {check(false,"Delete action opens confirmation");return false}
             UIAccessibility.capture(deletion,"task-type-delete")
+            check(try db.task(task.id)?.typeID=="documentation","Opening deletion confirmation does not mutate the task")
             UIAccessibility.press(UIAccessibility.find(deletion,"task-type-delete-confirm"));settle(1)
             check(try db.task(task.id)?.typeID==nil && db.tasks().count==1,"Deleting a type preserves the task and clears classification")
             check(try !db.taskTypes().contains{$0.id=="documentation"},"Deleted type disappears from the shared catalog")
