@@ -50,6 +50,22 @@ import MeterCore
         store.saveTask(task) {if case .success=$0 {retried=true}}
         settle(until:{!store.isPerformingAction},timeout:5)
         check(retried && store.tasks.count==1,"Saving can be retried after a failure without a duplicate task")
+        let importGate=DispatchSemaphore(value:0),importStarted=DispatchSemaphore(value:0)
+        store.reloadLocal(importJournals:{db in
+            // Hold an old WAL read snapshot, like a reload overtaken by an edit.
+            try db.exec("BEGIN");_ = try db.tasks();importStarted.signal()
+            guard importGate.wait(timeout:.now()+10) == .success else {throw MeterError("Import gate timeout")}
+        })
+        var importing=false
+        settle(until:{importing = importStarted.wait(timeout:.now()) == .success;return importing},timeout:5)
+        check(importing,"Background import starts before the foreground edit")
+        var edited=task;edited.title="Новое название после импорта"
+        var editedSuccessfully=false
+        store.saveTask(edited) {if case .success=$0 {editedSuccessfully=true}}
+        settle(until:{!store.isPerformingAction},timeout:5)
+        check(editedSuccessfully && store.tasks.first?.task.title==edited.title,"Foreground edit finishes while journal import remains blocked")
+        importGate.signal();settle(until:{!store.localBusy},timeout:5)
+        check(!store.localBusy && store.tasks.first?.task.title==edited.title,"An older reload snapshot cannot overwrite a successful edit")
         store.updating=true;settle()
         check(UIAccessibility.find(host,"action-progress")==nil,"Background quota polling does not block editing")
         return failures==0

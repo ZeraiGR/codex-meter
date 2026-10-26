@@ -14,12 +14,14 @@ public enum Journal {
         var contextTurn:String?
         var pendingContext=false
         var nextProvider:String?,nextServiceTier:String?
+        var compactedTurns=Set<String>()
         // Only complete JSONL lines: a writer can be in the middle of its final line.
         let lines=data.split(separator:10,omittingEmptySubsequences:false)
         for line in lines.dropLast() {
             guard let row=(try? JSONSerialization.jsonObject(with:Data(line))) as? [String:Any],
                   let p=row["payload"] as? [String:Any],let timestamp=date(row["timestamp"]) else { continue }
             let type=row["type"] as? String
+            if type=="compacted",let active {compactedTurns.insert(active)}
             if type=="session_meta" {
                 thread=p["id"] as? String ?? thread
                 session=ExecutionContext(originator:p["originator"] as? String,clientVersion:p["cli_version"] as? String,source:p["source"] as? String)
@@ -94,6 +96,9 @@ public enum Journal {
             run.workingDirectory=transcript.workingDirectory;run.category=transcript.category
             run.messageCount=turn.messages.count
             run.title=transcript.category=="service" ? "Автоматическая проверка действия Codex":turn.title
+            if transcript.category != "service",compactedTurns.contains(turn.id),!turn.messages.contains(where:{$0.role=="user"}) {
+                run.title="Сжатие контекста Codex"
+            }
             run.preview=turn.messages.first(where:{$0.role=="assistant" && ["final_answer","final"].contains($0.phase ?? "")}).map{String($0.text.prefix(240))}
                 ?? turn.messages.first(where:{$0.role=="assistant"}).map{String($0.text.prefix(240))}
             runs[turn.id]=run
@@ -103,13 +108,19 @@ public enum Journal {
     public static func sync(db:Database,home:URL? = nil) throws -> Int {
         let root=home ?? URL(fileURLWithPath:ProcessInfo.processInfo.environment["CODEX_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex").path)
         var changed=0
+        // Only revisit ambiguous old titles, not all multi-gigabyte journals.
+        let titleBackfills=Set(try db.query("SELECT data FROM turns WHERE data LIKE '%Продолжение без нового запроса%'").compactMap {
+            try Codec.decode(RunRecord.self,$0["data"]!).sourcePath
+        })
         for subdir in ["sessions","archived_sessions"] {
             guard let enumerator=FileManager.default.enumerator(at:root.appendingPathComponent(subdir),includingPropertiesForKeys:[.contentModificationDateKey,.fileSizeKey],options:[.skipsHiddenFiles]) else { continue }
             for case let path as URL in enumerator where path.pathExtension=="jsonl" {
                 let values=try path.resourceValues(forKeys:[.contentModificationDateKey,.fileSizeKey])
                 let fingerprint="execution-v1:\(values.fileSize ?? 0):\(values.contentModificationDate?.timeIntervalSince1970 ?? 0)"
                 let key="file:\(path.path)"
-                guard try db.value(key) != fingerprint else { continue }
+                let titleKey="compaction-title:"+path.path
+                let needsTitle=try titleBackfills.contains(path.path) && db.value(titleKey) != "1"
+                guard try db.value(key) != fingerprint || needsTitle else { continue }
                 let parsed=parse(try Data(contentsOf:path,options:.mappedIfSafe),fallbackThread:path.deletingPathExtension().lastPathComponent)
                 try db.transaction {
                     for var run in parsed {
@@ -121,6 +132,7 @@ public enum Journal {
                         try db.saveRun(run)
                     }
                     try db.set(key,fingerprint)
+                    try db.set(titleKey,"1")
                 }
                 changed += 1
             }
