@@ -42,7 +42,7 @@ struct TaskTypesManager:View {
         VStack(alignment:.leading,spacing:12) {
             HStack {Text("Типы задач").font(.title2.weight(.semibold));Spacer();Button("Добавить тип",systemImage:"plus"){editing=TaskType(name:"")}.accessibilityIdentifier("task-type-add")}
             Text("Ваш общий список для задач и фильтров. Архив скрывает тип при новых назначениях; удаление снимает тип с задач, сохраняя их историю.")
-                .font(.caption).foregroundStyle(MeterTheme.secondary)
+                .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
             if store.taskTypes.isEmpty {
                 ContentUnavailableView("Добавьте первый тип",systemImage:"tag",description:Text("Назовите типы так, как удобно вам. Готового списка нет."))
                     .frame(height:200).accessibilityIdentifier("task-types-empty")
@@ -64,7 +64,7 @@ struct TaskTypesManager:View {
                             }
                         }
                     }
-                }.frame(height:260)
+                }.frame(height:min(260,CGFloat(store.taskTypes.count)*36))
             }
             if let issue {Text(issue).font(.caption).foregroundStyle(.red)}
         }.actionProgress()
