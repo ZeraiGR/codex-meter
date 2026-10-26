@@ -55,7 +55,9 @@ import MeterCore
             settle(1)
         }
         typeQuery("уникальныйответ")
-        check(table.numberOfRows==4 && table.visibleRect.height>=220,"Typing a query finds three full-text matches before any selection")
+        let searchDeadline=Date().addingTimeInterval(5)
+        while table.numberOfRows != 4 && Date()<searchDeadline {settle(0.1)}
+        check(table.numberOfRows==4 && table.visibleRect.height>=220,"Typing a query finds three full-text matches before any selection (rows: \(table.numberOfRows), height: \(table.visibleRect.height))")
         // Native selection through mouse events, not an injected SwiftUI state.
         NSApp.activate(ignoringOtherApps:true)
         window.makeKeyAndOrderFront(nil)
