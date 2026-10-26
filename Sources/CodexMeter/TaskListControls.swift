@@ -36,10 +36,7 @@ struct TaskListControls:View {
                             Text("Отменена").tag("cancelled")
                             Text("Не удалась").tag("failed")
                         }.accessibilityIdentifier("task-list-status")
-                        VStack(alignment:.leading,spacing:5) {
-                            Text("Тип содержит").font(.caption)
-                            TextField("Например: code-review",text:$kind).textFieldStyle(.roundedBorder).accessibilityIdentifier("task-list-kind")
-                        }
+                        TaskTypeFilter(selection:$kind).accessibilityIdentifier("task-list-kind")
                         HStack {
                             Button("Сбросить") {status="";kind=""}.disabled(filterCount==0)
                             Spacer()

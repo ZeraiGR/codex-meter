@@ -19,7 +19,7 @@ struct TaskCheckButton:View {
     }
 }
 
-enum TaskBatchKind:String {case status="Изменить статус",merge="Объединить задачи"}
+enum TaskBatchKind:String {case type="Указать тип",status="Изменить статус",merge="Объединить задачи"}
 struct TaskBatchRequest:Identifiable {
     let id=UUID()
     let tasks:[TaskSummary]
@@ -43,6 +43,7 @@ struct TaskBatchBar:View {
             Spacer(minLength:0)
             if count>0 {
                 Menu {
+                    Button("Указать тип",systemImage:"tag"){action(.type)}
                     Button("Изменить статус",systemImage:"checkmark.circle"){action(.status)}
                     Button("Объединить задачи",systemImage:"arrow.triangle.merge"){action(.merge)}
                 } label:{Label("Действия",systemImage:"ellipsis.circle")}
@@ -60,12 +61,14 @@ struct TaskBatchEditor:View {
     let request:TaskBatchRequest
     let onSaved:(String?)->Void
     @State private var status="completed"
+    @State private var typeID=""
     @State private var target=""
     @State private var issue:String?
     private var ids:[String] {request.tasks.map(\.id)}
     private var destination:TaskSummary? {store.tasks.first{$0.id==target}}
     private var valid:Bool {
         switch request.kind {
+        case .type:return !typeID.isEmpty
         case .status:return true
         case .merge:return destination != nil && ids.contains{$0 != target}
         }
@@ -78,6 +81,9 @@ struct TaskBatchEditor:View {
                 ScrollView {VStack(alignment:.leading,spacing:6){ForEach(request.tasks){Text($0.task.title)}}}.frame(maxHeight:100)
             }.font(.caption)
             switch request.kind {
+            case .type:
+                TaskTypePicker(selection:$typeID)
+                Text("Тип будет назначен всем выбранным задачам и их запускам.").font(.caption)
             case .status:
                 Picker("Новый статус",selection:$status) {
                     Text("В работе").tag("active")
@@ -107,10 +113,11 @@ struct TaskBatchEditor:View {
             .disabled(store.isPerformingAction)
     }
     private func save() {
-        let ids=ids,status=status,target=target,kind=request.kind
+        let ids=ids,status=status,target=target,kind=request.kind,typeID=typeID
         issue=nil
         store.performAction("Сохраняем выбранные задачи…",operation:{db in
             switch kind {
+            case .type:try db.assignTaskType(ids,typeID:typeID)
             case .status:try db.updateTaskStatuses(ids,status:status)
             case .merge:try db.mergeTasks(sources:ids,target:target)
             }

@@ -46,7 +46,7 @@ import MeterCore
         UIAccessibility.press(saveButton());settle()
         guard let task=(try? Database().tasks())?.first else {check(false,"Task saved by the dialog");return false}
         let savedRuns=(try? Database().runs()) ?? []
-        check(task.title=="Разработка Codex Meter" && task.kind=="Произвольная задача" && task.status=="paused" && task.finished==nil,"Task keeps the result name and remains open after a completed request")
+        check(task.title=="Разработка Codex Meter" && task.typeID==nil && task.status=="paused" && task.finished==nil,"Task keeps the result name and remains open after a completed request")
         check(savedRuns.first{$0.id==run.id}?.taskID==task.id && savedRuns.first{$0.id==second.id}?.taskID==nil,"Only the selected request is added to the task")
         // Reassignment must open the existing task, not another prefilled new task.
         var assigned=run;assigned.taskID=task.id

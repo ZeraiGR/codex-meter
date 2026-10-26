@@ -177,6 +177,8 @@ struct TasksView:View {
     @State private var taskAscending=false
     @State private var taskStatus=""
     @State private var taskKind=""
+    @State private var runTypeFilter=""
+    @State private var runFiltersOpen=false
     @State private var onlyUnassigned=true
     @State private var includeService=false
     @State private var limit=100
@@ -185,7 +187,12 @@ struct TasksView:View {
     @State private var unavailable=0
     @State private var initialized=false
     @State private var searchRevision=0
-    var candidates:[RunRecord] {store.runs.filter{(!onlyUnassigned || $0.taskID==nil) && (includeService || !$0.isService)}}
+    var candidates:[RunRecord] {
+        let types=Dictionary(uniqueKeysWithValues:store.tasks.compactMap{s in s.task.typeID.map{(s.id,$0)}})
+        return store.runs.filter{run in
+        let typeID=run.taskID.flatMap{types[$0]}
+        return (!onlyUnassigned || run.taskID==nil) && (includeService || !run.isService) && (runTypeFilter.isEmpty || (runTypeFilter=="unclassified" ? typeID==nil:typeID==runTypeFilter))
+    }}
     var filteredRuns:[RunRecord] {candidates.filter{run in filter.isEmpty || [run.title,run.preview ?? "",run.workingDirectory ?? "",run.model,store.tasks.first(where:{$0.id==run.taskID})?.task.title ?? ""].contains(where:{$0.localizedCaseInsensitiveContains(filter)}) || searchMatches.contains(run.id)}}
     var shownRuns:[RunRecord] {Array(filteredRuns.prefix(limit))}
     var runGroups:[(Date,[RunRecord])] {
@@ -200,7 +207,7 @@ struct TasksView:View {
             VStack(alignment:.leading,spacing:12) {
                 HStack {
                     TextField(showUnassigned ? "Поиск по запросам и ответам":"Поиск задачи или типа",text:Binding(get:{filter},set:{filter=$0;limit=100})).textFieldStyle(.roundedBorder)
-                    Button{editing=WorkTask(title:"",kind:"Произвольная задача")}label:{Image(systemName:"plus")}.help("Создать задачу")
+                    Button{editing=WorkTask(title:"",kind:"")}label:{Image(systemName:"plus")}.help("Создать задачу")
                 }
                 Picker("Список",selection:$showUnassigned){Text("Задачи").tag(false);Text("Запуски").tag(true)}.pickerStyle(.segmented).labelsHidden()
                 if store.loadingHistory {ProgressView("Обновляем историю…").controlSize(.small)}
@@ -209,6 +216,14 @@ struct TasksView:View {
                         Toggle("Без задачи",isOn:$onlyUnassigned)
                         Spacer()
                         Toggle("Служебные",isOn:$includeService)
+                        Button {runFiltersOpen.toggle()} label:{Image(systemName:runTypeFilter.isEmpty ? "line.3.horizontal.decrease":"line.3.horizontal.decrease.circle.fill")}
+                            .help("Фильтр по типу задачи").accessibilityLabel("Тип задачи запуска").accessibilityIdentifier("run-type-filter-open")
+                            .popover(isPresented:$runFiltersOpen) {
+                                VStack(alignment:.leading,spacing:12) {
+                                    TaskTypeFilter(selection:$runTypeFilter).accessibilityIdentifier("run-type-filter")
+                                    Button("Готово"){runFiltersOpen=false}.keyboardShortcut(.defaultAction)
+                                }.padding(18).frame(width:280)
+                            }
                     }.toggleStyle(.checkbox).font(.caption)
                     HStack(spacing:6) {
                         if searching {ProgressView().controlSize(.mini);Text("Ищем в переписке…")}
@@ -240,7 +255,17 @@ struct TasksView:View {
                                             .accessibilityValue(checkedRuns.contains(run.id) ? "Отмечен":"Не отмечен")
                                             .accessibilityIdentifier("run-check-\(run.id)")
                                             .help("Изменить отметку только этого запуска")
-                                        RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
+                                        VStack(alignment:.leading,spacing:4) {
+                                            RunListRow(run:run,taskTitle:store.tasks.first{$0.id==run.taskID}?.task.title)
+                                            if store.tasks.first(where:{$0.id==run.taskID})?.task.typeID==nil {
+                                                Button {
+                                                    if let task=store.tasks.first(where:{$0.id==run.taskID})?.task {editing=task}
+                                                    else {assigning=RunAssignment(runs:[run])}
+                                                } label:{Label("Нужно указать тип задачи",systemImage:"tag")}
+                                                    .buttonStyle(.plain).font(.caption2).foregroundStyle(MeterTheme.warning)
+                                                    .accessibilityIdentifier("run-needs-type-\(run.id)")
+                                            }
+                                        }
                                     }.tag(run.id)
                                 }
                             }
@@ -286,13 +311,18 @@ struct TasksView:View {
                                 }
                                 VStack(alignment:.leading,spacing:6) {
                                     Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
-                                    HStack{Text(summary.task.kind).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
+                                    HStack{Text(summary.task.typeLabel).lineLimit(1);Spacer();Text(Format.status(summary.task.status))}.font(.caption2).foregroundStyle(.primary)
                                     HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
                                     if let dollars=store.exchangeRate?.dollars(for:summary.rubles ?? summary.measuredRubles) {
                                         Text("≈ "+Format.usd(dollars)+(summary.rubles == nil ? " учтено":"")+((store.exchangeRate?.isStale() == true || store.exchangeRateIssue != nil) ? " · сохранённый курс":""))
                                             .font(.caption).foregroundStyle(MeterTheme.secondary).monospacedDigit()
                                     }
                                 }.padding(.vertical,6).textSelection(.disabled)
+                                if summary.task.typeID==nil {
+                                    Button {editing=summary.task} label:{Image(systemName:"tag.badge.plus")}
+                                        .buttonStyle(.plain).foregroundStyle(MeterTheme.warning).help("Указать тип задачи")
+                                        .accessibilityLabel("Указать тип: \(summary.task.title)").accessibilityIdentifier("task-needs-type-\(summary.id)")
+                                }
                             }.tag(summary.id)
                         }
                     }.listStyle(.inset).frame(minHeight:220,maxHeight:.infinity).accessibilityIdentifier("task-list")
@@ -334,7 +364,11 @@ struct TasksView:View {
             ScrollView {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
-                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.kind).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold));Text(s.task.typeLabel).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        if s.task.typeID==nil {
+                            Button {editing=s.task} label:{Label("Указать тип задачи",systemImage:"tag")}
+                                .foregroundStyle(MeterTheme.warning).accessibilityIdentifier("task-classify")
+                        }
                         TaskOverview(summary:s)
                         TaskExecutionView(runs:s.runs)
                         HStack {
@@ -372,6 +406,7 @@ struct TasksView:View {
         }.frame(maxWidth:.infinity,maxHeight:.infinity)
         .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || previewRun != nil}}
         .onChange(of:filter){_,_ in searchMatches=[]}
+        .onChange(of:runTypeFilter){_,_ in searchMatches=[];searchRevision += 1}
         .onChange(of:shownRuns.map(\.id)){_,ids in
             checkedRuns.formIntersection(ids)
             if let previewRun,!ids.contains(previewRun) {self.previewRun=nil}
@@ -435,7 +470,26 @@ struct TaskEditor:View {
     @Environment(\.dismiss) var dismiss
     @State var task:WorkTask
     var body:some View {
-        VStack(alignment:.leading,spacing:18){Text("Пользовательская задача").font(.title2);TextField("Конкретный результат: ревью API заказов",text:$task.title);TextField("Тип задачи: code-review",text:$task.kind);Text("Тип объединяет повторяющиеся задачи для прогноза. Конкретное название отличает один запуск от другого.").font(.caption).foregroundStyle(MeterTheme.secondary);if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger)};HStack{Button("Отмена"){dismiss()};Spacer();Button("Сохранить"){store.saveTask(task) {result in switch result {case .success:dismiss();case .failure(let error):issue=error.localizedDescription}}}.buttonStyle(.borderedProminent).disabled(task.title.trimmingCharacters(in:.whitespaces).isEmpty || task.kind.trimmingCharacters(in:.whitespaces).isEmpty)}}.textFieldStyle(.roundedBorder).padding(24).frame(width:480).background(MeterTheme.background).actionProgress()
+        VStack(alignment:.leading,spacing:18) {
+            Text("Пользовательская задача").font(.title2)
+            TextField("Конкретный результат: ревью API заказов",text:$task.title)
+            TaskTypePicker(selection:Binding(get:{task.typeID ?? ""},set:{task.typeID=$0.isEmpty ? nil:$0}))
+            if task.typeID==nil {
+                Label("Нужно указать тип задачи",systemImage:"tag").foregroundStyle(MeterTheme.warning)
+            }
+            if let previous=task.legacyKind ?? (task.typeID==nil && !task.kind.isEmpty ? task.kind:nil) {
+                Text("Прежнее значение: \(previous). Оно не считается подтверждённым типом.").font(.caption).foregroundStyle(MeterTheme.secondary)
+            }
+            if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger)}
+            HStack {
+                Button("Отмена"){dismiss()}
+                Spacer()
+                Button("Сохранить"){store.saveTask(task) {result in
+                    switch result {case .success:dismiss();case .failure(let error):issue=error.localizedDescription}
+                }}.buttonStyle(.borderedProminent).disabled(task.title.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("task-editor-save")
+            }
+        }.textFieldStyle(.roundedBorder).padding(24).frame(width:480).background(MeterTheme.background).actionProgress()
     }
 }
 
@@ -453,11 +507,10 @@ struct AssignEditor:View {
     init(runs:[RunRecord],onAssigned:@escaping ()->Void = {}) {self.runs=runs;self.onAssigned=onAssigned}
     @State private var target=""
     @State private var title=""
-    @State private var kind="Произвольная задача"
+    @State private var typeID=""
     @State private var creating=false
     @State private var issue:String?
     private var cleanTitle:String {title.trimmingCharacters(in:.whitespacesAndNewlines)}
-    private var cleanKind:String {kind.trimmingCharacters(in:.whitespacesAndNewlines)}
     var body:some View {
         VStack(alignment:.leading,spacing:16) {
             Text("Добавить к задаче").font(.title2)
@@ -484,12 +537,8 @@ struct AssignEditor:View {
                         .accessibilityIdentifier("assignment-title")
                     Text("Например: Разработка Codex Meter или Ревью API заказов.").font(.caption).foregroundStyle(MeterTheme.secondary)
                 }
-                VStack(alignment:.leading,spacing:6) {
-                    Text("Тип для сравнения похожих задач").font(.callout.weight(.medium))
-                    TextField("Произвольная задача",text:$kind)
-                    Text("Для прогноза расхода. Можно оставить «Произвольная задача»; для повторяющейся работы указывайте один тип, например code-review.")
-                        .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
-                }
+                TaskTypePicker(selection:$typeID)
+                if typeID.isEmpty {Text("Тип можно указать позже. Задача будет отмечена как требующая классификации.").font(.caption).foregroundStyle(MeterTheme.warning)}
             } else {
                 TaskChooser(choices:TaskChoice.sorted(store.tasks),selection:$target,autofocus:true,confirm:addToTask)
                 Text("Выбранные запуски дополнят историю, токены и время задачи. Если запуск уже относится к другой задаче, он будет перенесён.")
@@ -511,10 +560,11 @@ struct AssignEditor:View {
     }
     private func addToTask() {
         guard let started=runs.map(\.started).min() else {return}
-        let task:WorkTask
+        var task:WorkTask
         if creating || store.tasks.isEmpty {
             guard !cleanTitle.isEmpty else { return }
-            task=WorkTask(title:cleanTitle,kind:cleanKind.isEmpty ? "Произвольная задача":cleanKind,status:"paused",created:started)
+            task=WorkTask(title:cleanTitle,kind:"",status:"paused",created:started)
+            task.typeID=typeID.isEmpty ? nil:typeID
         } else {
             guard let existing=store.tasks.first(where:{$0.id==target})?.task else { return }
             task=existing
@@ -641,6 +691,7 @@ struct SettingsView:View {
                         if savedAlertSettings==alertSettingsKey {Label("Сохранено",systemImage:"checkmark").font(.caption).foregroundStyle(MeterTheme.accent)}
                     }
                 }
+                Card {TaskTypesManager()}
                 SoftwareUpdateCard(updater:store.updates)
                 ConnectionCard()
                 Card {

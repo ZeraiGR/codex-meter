@@ -62,6 +62,7 @@ struct RunDetailView:View {
     @State private var find=""
     @State private var showUpdates=true
     @State private var showContext=false
+    @State private var editingType:WorkTask?
     private var taskTitle:String? {store.tasks.first{$0.id==run.taskID}?.task.title}
     private var visibleTurns:[TranscriptTurn] {
         (document?.turns ?? []).filter{entireThread || $0.id==run.id}.map { turn in
@@ -84,6 +85,14 @@ struct RunDetailView:View {
                 }.font(.caption).foregroundStyle(MeterTheme.secondary)
                 if let taskTitle {Label(taskTitle,systemImage:"checkmark.circle.fill").font(.caption).foregroundStyle(MeterTheme.accent)}
                 else {Text("Пока без задачи. Прочитайте переписку и выберите, к какому результату относится этот запуск.").font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)}
+                if let task=store.tasks.first(where:{$0.id==run.taskID})?.task,task.typeID != nil {
+                    Label(task.typeLabel,systemImage:"tag").font(.caption)
+                } else {
+                    Button {
+                        if let task=store.tasks.first(where:{$0.id==run.taskID})?.task {editingType=task} else {assign()}
+                    } label:{Label("Указать тип задачи",systemImage:"tag")}
+                        .controlSize(.small).foregroundStyle(MeterTheme.warning).accessibilityIdentifier("run-classify")
+                }
                 HStack {
                     Picker("Показать",selection:$entireThread){Text("Этот запуск").tag(false);Text("Вся переписка").tag(true)}.pickerStyle(.segmented).labelsHidden().frame(maxWidth:290)
                     Spacer()
@@ -128,6 +137,7 @@ struct RunDetailView:View {
                 }.controlSize(.small).disabled(visibleTurns.isEmpty)
             }.padding(12)
         }.textSelection(.enabled)
+        .sheet(item:$editingType){TaskEditor(task:$0)}
         .sheet(isPresented:$showContext) {
             VStack(alignment:.leading,spacing:16) {
                 HStack {Text("Контекст запуска").font(.title2);Spacer();Button("Готово"){showContext=false}.keyboardShortcut(.cancelAction)}

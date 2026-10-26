@@ -5,10 +5,10 @@ public enum TaskSort:String,CaseIterable {case recent,tokens,time,cost,quota,tit
 public enum TaskListQuery {
     private static func normalized(_ text:String)->String {text.folding(options:[.caseInsensitive,.diacriticInsensitive],locale:Locale(identifier:"ru_RU"))}
     public static func apply(_ summaries:[TaskSummary],query:String="",status:String="",kind:String="",sort:TaskSort = .recent,ascending:Bool=false)->[TaskSummary] {
-        let words=normalized(query).split(whereSeparator:{$0.isWhitespace}),kind=normalized(kind.trimmingCharacters(in:.whitespacesAndNewlines))
+        let words=normalized(query).split(whereSeparator:{$0.isWhitespace})
         // Compute metrics once per task, not for every comparison in the sort.
         let rows=summaries.filter { s in
-            (status.isEmpty || s.task.status==status) && (kind.isEmpty || normalized(s.task.kind).contains(kind)) && words.allSatisfy {normalized(s.task.title+" "+s.task.kind).contains($0)}
+            (status.isEmpty || s.task.status==status) && (kind.isEmpty || (kind=="unclassified" ? s.task.typeID==nil:s.task.typeID==kind)) && words.allSatisfy {normalized(s.task.title+" "+s.task.typeLabel).contains($0)}
         }.map { s -> (summary:TaskSummary,key:Double?,title:String) in
             let key:Double?
             switch sort {
