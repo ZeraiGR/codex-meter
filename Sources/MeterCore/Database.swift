@@ -13,7 +13,7 @@ public final class Database {
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         guard sqlite3_open_v2(directory.appendingPathComponent("meter.sqlite").path,&db,SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,nil)==SQLITE_OK else { throw MeterError("Не удалось открыть базу Codex Meter") }
         sqlite3_busy_timeout(db,5000)
-        try exec("PRAGMA journal_mode=WAL")
+        if try query("PRAGMA journal_mode").first?["journal_mode"] != "wal" {try exec("PRAGMA journal_mode=WAL")}
         try exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS task_types (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
@@ -23,7 +23,8 @@ public final class Database {
         try exec("CREATE TABLE IF NOT EXISTS payments (id TEXT PRIMARY KEY, start REAL NOT NULL, end REAL NOT NULL, data TEXT NOT NULL)")
         try exec("CREATE TABLE IF NOT EXISTS observations (id INTEGER PRIMARY KEY, account TEXT NOT NULL, stamp REAL NOT NULL, data TEXT NOT NULL)")
         try exec("CREATE INDEX IF NOT EXISTS observations_stamp ON observations(stamp)")
-        try exec("PRAGMA user_version=1")
+        // Opening a reader must not acquire the writer lock on every CLI call.
+        if try query("PRAGMA user_version").first?["user_version"] == "0" {try exec("PRAGMA user_version=1")}
     }
     deinit { sqlite3_close(db) }
     public func exec(_ sql: String, _ params: [Any?] = []) throws { _ = try query(sql,params) }
@@ -140,8 +141,8 @@ public final class Database {
             try exec("DELETE FROM tasks WHERE id=?",[source])
         }
     }
-    public func summaries() throws -> [TaskSummary] {
-        let allRuns=try runs(), allTasks=try tasks(), obs=try observations(), bills=try payments()
+    public func summaries(runs suppliedRuns:[RunRecord]? = nil) throws -> [TaskSummary] {
+        let allRuns=try suppliedRuns ?? runs(), allTasks=try tasks(), obs=try observations(), bills=try payments()
         let attribution=Attribution.compute(runs:allRuns,observations:obs,payments:bills)
         return allTasks.map { task in
             let runs=allRuns.filter { $0.taskID==task.id }, a=attribution[task.id]

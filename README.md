@@ -22,6 +22,11 @@ token tracking and task-level cost estimates.
 
 </div>
 
+Saving task changes does not wait for background journal parsing. Local SQLite readers
+can open while another process writes; no database server is required. Turns containing
+context compaction without a new user request are labelled explicitly, with their
+token usage and task bindings preserved.
+
 ## Your quota, one click away
 
 See how much Codex quota remains, when it resets and how usage compares with the

@@ -14,13 +14,25 @@ public enum Attribution {
         var totals:[String:Int64]=[:], accum:[String:Acc]=[:]
         for r in runs { if let id=r.taskID { totals[id,default:0] += r.tokens.total } }
         guard observations.count>1 else { return [:] }
+        let orderedRuns=runs.sorted{$0.started<$1.started}
+        var cursor=0, candidates:[RunRecord]=[]
+        var previousStart=Date.distantPast,previousEnd=Date.distantPast
         for (a,b) in zip(observations,observations.dropFirst()) {
             let delta=b.window.usedPercent-a.window.usedPercent
             guard a.account==b.account, AlertPolicy.sameWindow(a.window,b.window),
                   a.window.windowDurationMins==b.window.windowDurationMins,
                   b.date>a.date,b.date.timeIntervalSince(a.date)<=180,
                   a.window.valid(at:a.date),b.window.valid(at:b.date),delta>=0,delta<=100 else { continue }
-            let activity=runs.filter { $0.started<=b.date && ($0.ended ?? b.date)>=a.date }
+            // Sweep the timeline instead of scanning every historical run for
+            // every observation. Reset for callers supplying non-monotonic dates.
+            if a.date<previousStart || b.date<previousEnd {cursor=0;candidates=[]}
+            previousStart=a.date;previousEnd=b.date
+            candidates.removeAll{($0.ended ?? b.date)<a.date}
+            while cursor<orderedRuns.count,orderedRuns[cursor].started<=b.date {
+                let run=orderedRuns[cursor];cursor += 1
+                if (run.ended ?? b.date)>=a.date {candidates.append(run)}
+            }
+            let activity=candidates
             var weights:[String:Int64]=[:];var allWeight:Int64=0
             for run in activity {
                 let count=run.tokenEvents.filter{$0.date>a.date && $0.date<=b.date}.reduce(Int64(0)){$0+$1.tokens.total}

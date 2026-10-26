@@ -37,9 +37,9 @@ import MeterCore
     private var timer:Timer?
     private var networkTicks=0
     private var quotaRefreshSchedule=QuotaRefreshSchedule()
-    private var localBusy=false
+    private(set) var localBusy=false
     private var historyLoaded=false
-    private var localReload:Task<Void,Never>?
+    private var historyRevision=0
     private let notificationDelegate=MeterNotificationDelegate()
     private let directory=Database.defaultDirectory
     var currentPayment:Payment? {payments.first{$0.contains(Date())}}
@@ -99,16 +99,20 @@ import MeterCore
             }
         }
     }
-    func reloadLocal() {
+    func reloadLocal(importJournals:@escaping @Sendable (Database)throws->Void = {_ = try Journal.sync(db:$0)}) {
         guard !localBusy,!isPerformingAction else{return};localBusy=true;loadingHistory = !historyLoaded
-        localReload=Task {
+        let revision=historyRevision
+        Task {
             do {
                 let result=try await Task.detached(priority:.utility) { [directory] in
-                    let db=try Database(directory:directory);_ = try Journal.sync(db:db)
-                    return (try db.summaries(),try db.runs(),try db.payments(),try db.taskTypes())
+                    let db=try Database(directory:directory);try importJournals(db)
+                    let runs=try db.runs()
+                    return (try db.summaries(runs:runs),runs,try db.payments(),try db.taskTypes())
                 }.value
-                tasks=result.0;runs=result.1;payments=result.2;taskTypes=result.3;historyLoaded=true
-            } catch {self.error=error.localizedDescription}
+                if revision==historyRevision {
+                    tasks=result.0;runs=result.1;payments=result.2;taskTypes=result.3;historyLoaded=true
+                }
+            } catch {if revision==historyRevision {self.error=error.localizedDescription}}
             localBusy=false;loadingHistory=false
         }
     }
@@ -156,9 +160,10 @@ import MeterCore
                        completion:@escaping (Result<Void,Error>)->Void = {_ in}) -> Bool {
         guard !isPerformingAction else{return false}
         activity=title
-        let pendingReload=localReload
+        // User actions do not wait for journal parsing. A reload started before
+        // this mutation must not later overwrite the committed UI state.
+        historyRevision += 1
         Task {
-            await pendingReload?.value
             defer {activity=nil}
             do {
                 let result=try await Task.detached(priority:.userInitiated) { [directory] in
@@ -167,7 +172,8 @@ import MeterCore
                     // failed recalculation must leave the dialog safe to retry.
                     return try db.transaction {
                         try operation(db)
-                        return (try db.summaries(),try db.runs(),try db.payments(),try db.taskTypes())
+                        let runs=try db.runs()
+                        return (try db.summaries(runs:runs),runs,try db.payments(),try db.taskTypes())
                     }
                 }.value
                 tasks=result.0;runs=result.1;payments=result.2;taskTypes=result.3;historyLoaded=true
