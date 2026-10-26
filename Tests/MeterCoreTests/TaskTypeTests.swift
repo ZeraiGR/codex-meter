@@ -67,7 +67,7 @@ extension MeterCoreTests {
             task.typeID=type.id;try db.saveTask(task)
         }
         try db.saveRun(RunRecord(id:"run",thread:"thread",started:epoch,tokens:.init(input:123),taskID:"one"))
-        let before=try db.runs()
+        let before=try db.query("SELECT * FROM turns ORDER BY id")
         try db.exec("CREATE TRIGGER reject_type_clear BEFORE UPDATE ON tasks WHEN NEW.id='two' BEGIN SELECT RAISE(ABORT,'test failure'); END")
         XCTAssertThrowsError(try db.deleteTaskType(type.id))
         XCTAssertEqual(try db.task("one")?.typeID,type.id)
@@ -81,7 +81,7 @@ extension MeterCoreTests {
         XCTAssertEqual(try db.task("one")?.status,"completed")
         XCTAssertEqual(try db.task("one")?.created,epoch)
         XCTAssertEqual(try db.task("one")?.finished,epoch)
-        XCTAssertEqual(try Codec.encode(db.runs()),try Codec.encode(before))
+        XCTAssertEqual(try db.query("SELECT * FROM turns ORDER BY id"),before)
         XCTAssertEqual(try db.summaries().first{$0.id=="one"}?.tokens.total,123)
         let reopened=try Database(directory:db.directory)
         XCTAssertTrue(try reopened.taskTypes().isEmpty)
