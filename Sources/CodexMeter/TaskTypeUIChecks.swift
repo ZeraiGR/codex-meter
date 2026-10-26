@@ -15,6 +15,7 @@ import MeterCore
             let db=try Database(),task=WorkTask(id:"legacy",title:"Обновить руководство",kind:"project-docs")
             try db.saveTask(task)
             let store=MeterStore(startServices:false);store.tasks=try db.summaries()
+            check(TaskChoice.matching(TaskChoice.sorted(store.tasks),query:"",scope:0,typeID:"unclassified").count==1,"Chooser type filter identifies unclassified tasks")
             let window=NSWindow(contentRect:NSRect(x:-10000,y:-10000,width:620,height:720),styleMask:[.titled],backing:.buffered,defer:false)
             window.isReleasedWhenClosed=false;defer{window.orderOut(nil)}
             let host=NSHostingView(rootView:TaskEditor(task:task).environmentObject(store).background(MeterTheme.background))
@@ -38,6 +39,7 @@ import MeterCore
             UIAccessibility.capture(host,"task-type-selection")
             UIAccessibility.press(UIAccessibility.find(host,"task-editor-save"));settle(1)
             check(try db.task(task.id)?.typeID=="documentation","Task editor saves an explicit catalog ID")
+            check(TaskChoice.matching(TaskChoice.sorted(store.tasks),query:"",scope:0,typeID:"documentation").count==1 && TaskChoice.matching(TaskChoice.sorted(store.tasks),query:"",scope:0,typeID:"doc").isEmpty,"Chooser filter matches the exact catalog ID")
             let editor=NSHostingView(rootView:TaskTypeEditor(type:TaskType(id:"documentation",name:"Документация")).environmentObject(store).background(MeterTheme.background))
             window.contentView=editor;settle()
             guard let field=descendants(editor).compactMap({$0 as? NSTextField}).first(where:{$0.placeholderString=="Название типа"}) else{return false}

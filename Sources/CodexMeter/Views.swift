@@ -177,6 +177,8 @@ struct TasksView:View {
     @State private var taskAscending=false
     @State private var taskStatus=""
     @State private var taskKind=""
+    @State private var runTypeFilter=""
+    @State private var runFiltersOpen=false
     @State private var onlyUnassigned=true
     @State private var includeService=false
     @State private var limit=100
@@ -185,7 +187,12 @@ struct TasksView:View {
     @State private var unavailable=0
     @State private var initialized=false
     @State private var searchRevision=0
-    var candidates:[RunRecord] {store.runs.filter{(!onlyUnassigned || $0.taskID==nil) && (includeService || !$0.isService)}}
+    var candidates:[RunRecord] {
+        let types=Dictionary(uniqueKeysWithValues:store.tasks.compactMap{s in s.task.typeID.map{(s.id,$0)}})
+        return store.runs.filter{run in
+        let typeID=run.taskID.flatMap{types[$0]}
+        return (!onlyUnassigned || run.taskID==nil) && (includeService || !run.isService) && (runTypeFilter.isEmpty || (runTypeFilter=="unclassified" ? typeID==nil:typeID==runTypeFilter))
+    }}
     var filteredRuns:[RunRecord] {candidates.filter{run in filter.isEmpty || [run.title,run.preview ?? "",run.workingDirectory ?? "",run.model,store.tasks.first(where:{$0.id==run.taskID})?.task.title ?? ""].contains(where:{$0.localizedCaseInsensitiveContains(filter)}) || searchMatches.contains(run.id)}}
     var shownRuns:[RunRecord] {Array(filteredRuns.prefix(limit))}
     var runGroups:[(Date,[RunRecord])] {
@@ -209,6 +216,14 @@ struct TasksView:View {
                         Toggle("Без задачи",isOn:$onlyUnassigned)
                         Spacer()
                         Toggle("Служебные",isOn:$includeService)
+                        Button {runFiltersOpen.toggle()} label:{Image(systemName:runTypeFilter.isEmpty ? "line.3.horizontal.decrease":"line.3.horizontal.decrease.circle.fill")}
+                            .help("Фильтр по типу задачи").accessibilityLabel("Тип задачи запуска").accessibilityIdentifier("run-type-filter-open")
+                            .popover(isPresented:$runFiltersOpen) {
+                                VStack(alignment:.leading,spacing:12) {
+                                    TaskTypeFilter(selection:$runTypeFilter).accessibilityIdentifier("run-type-filter")
+                                    Button("Готово"){runFiltersOpen=false}.keyboardShortcut(.defaultAction)
+                                }.padding(18).frame(width:280)
+                            }
                     }.toggleStyle(.checkbox).font(.caption)
                     HStack(spacing:6) {
                         if searching {ProgressView().controlSize(.mini);Text("Ищем в переписке…")}
@@ -391,6 +406,7 @@ struct TasksView:View {
         }.frame(maxWidth:.infinity,maxHeight:.infinity)
         .onAppear {if !initialized {initialized=true;showUnassigned=store.tasks.isEmpty || previewRun != nil}}
         .onChange(of:filter){_,_ in searchMatches=[]}
+        .onChange(of:runTypeFilter){_,_ in searchMatches=[];searchRevision += 1}
         .onChange(of:shownRuns.map(\.id)){_,ids in
             checkedRuns.formIntersection(ids)
             if let previewRun,!ids.contains(previewRun) {self.previewRun=nil}

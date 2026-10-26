@@ -6,6 +6,7 @@ struct TaskChoice: Identifiable, Equatable {
     let id: String
     let title: String
     let kind: String
+    let typeID:String?
     let status: String
     let activity: Date
     let runCount: Int
@@ -22,7 +23,7 @@ struct TaskChoice: Identifiable, Equatable {
     }
     init(_ summary: TaskSummary) {
         let task=summary.task
-        id=task.id;title=task.title;kind=task.typeLabel;status=task.status;runCount=summary.runs.count
+        typeID=task.typeID;id=task.id;title=task.title;kind=task.typeLabel;status=task.status;runCount=summary.runs.count
         activity=max(task.created,task.finished ?? task.created,summary.runs.map { $0.ended ?? $0.started }.max() ?? task.created)
         searchText=Self.normalize(task.title+" "+task.typeLabel)
     }
@@ -35,10 +36,10 @@ struct TaskChoice: Identifiable, Equatable {
             return $0.id < $1.id
         }
     }
-    static func matching(_ choices:[Self],query:String,scope:Int)->[Self] {
+    static func matching(_ choices:[Self],query:String,scope:Int,typeID:String="")->[Self] {
         let words=normalize(query).split(whereSeparator: { $0.isWhitespace })
         return choices.filter { row in
-            (scope == 0 || (scope == 1 ? !row.closed : row.closed)) && words.allSatisfy { row.searchText.contains($0) }
+            (typeID.isEmpty || (typeID=="unclassified" ? row.typeID==nil:row.typeID==typeID)) && (scope == 0 || (scope == 1 ? !row.closed : row.closed)) && words.allSatisfy { row.searchText.contains($0) }
         }
     }
 }
@@ -48,9 +49,10 @@ struct TaskChooser: View {
     @Binding var selection: String
     @State private var query=""
     @State private var scope=0
+    @State private var typeID=""
     var autofocus=false
     var confirm:()->Void = {}
-    private var matches:[TaskChoice] { TaskChoice.matching(choices,query:query,scope:scope) }
+    private var matches:[TaskChoice] { TaskChoice.matching(choices,query:query,scope:scope,typeID:typeID) }
     private var selected:TaskChoice? { choices.first { $0.id == selection } }
     private var listSelection:Binding<String?> {
         Binding(get:{ selection.isEmpty ? nil : selection },set:{ selection=$0 ?? "" })
@@ -64,6 +66,7 @@ struct TaskChooser: View {
                 Text("Открытые").tag(1)
                 Text("Завершённые").tag(2)
             }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("task-choice-scope")
+            TaskTypeFilter(selection:$typeID).font(.caption).accessibilityIdentifier("task-choice-type")
             HStack {
                 Text("Найдено: \(matches.count) из \(choices.count)")
                     .accessibilityIdentifier("task-choice-count")
@@ -114,6 +117,7 @@ struct TaskChooser: View {
         // A changed query must never leave an invisible assignment selected.
         .onChange(of:query) { _,_ in selection="" }
         .onChange(of:scope) { _,_ in selection="" }
+        .onChange(of:typeID) { _,_ in selection="" }
         .onChange(of:choices) { _,_ in
             if !selection.isEmpty && !matches.contains(where:{$0.id==selection}) { selection="" }
         }

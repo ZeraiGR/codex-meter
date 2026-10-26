@@ -1,6 +1,18 @@
 import SwiftUI
 import MeterCore
 
+struct TaskTypeFilter:View {
+    @EnvironmentObject var store:MeterStore
+    @Binding var selection:String
+    var body:some View {
+        Picker("Тип задачи",selection:$selection) {
+            Text("Все типы").tag("")
+            Text("Тип не указан").tag("unclassified")
+            ForEach(store.taskTypes){type in Text(type.name+(type.archived ? " · архив":"")).tag(type.id)}
+        }
+    }
+}
+
 struct TaskTypePicker:View {
     @EnvironmentObject var store:MeterStore
     @Binding var selection:String
