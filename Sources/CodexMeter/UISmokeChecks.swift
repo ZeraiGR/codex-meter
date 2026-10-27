@@ -57,6 +57,9 @@ import SwiftUI
         panel.makeKeyAndOrderFront(nil)
         navigation.showDashboard {}; settle(until: { !dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow })
         check(!dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow, "Minimized dashboard is restored")
+        dashboard.close();settle()
+        navigation.showDashboard {};settle(until:{dashboard.isVisible && dashboard.isKeyWindow})
+        check(dashboard.isVisible && dashboard.isKeyWindow,"Closed dashboard can be shown again without opening a second scene")
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         let message = "Не удалось обновить квоту.\n\naccount/rateLimits/read · код -32603\nПодробности ответа сервера"
