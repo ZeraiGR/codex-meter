@@ -43,6 +43,8 @@ import MeterCore
             UIAccessibility.press(find("task-detail-status"));settle()
             UIAccessibility.press(find("task-status-option-completed"));settle(1)
             check(try db.task("status-task")?.status=="active" && find("task-status-error") != nil,"Failed status change preserves current status and shows retryable popup error")
+            check(UIAccessibility.enabled(find("task-status-option-completed")) && !store.isPerformingAction,"Status choices become enabled again after a failed save")
+            if let popup=NSApp.windows.first(where:{$0.isVisible && $0.contentView.map{UIAccessibility.find($0,"task-status-error") != nil} ?? false})?.contentView {UIAccessibility.capture(popup,"task-status-error")}
             try db.exec("DROP TRIGGER reject_status")
             UIAccessibility.press(find("task-status-option-completed"));settle(1)
             check(try db.task("status-task")?.status=="completed","Status popup retries successfully")

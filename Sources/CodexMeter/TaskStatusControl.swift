@@ -30,7 +30,11 @@ struct TaskStatusControl:View {
                     Text("Постоянная — открытая задача для регулярного пополнения контекста.")
                         .font(.caption).foregroundStyle(MeterTheme.secondary).fixedSize(horizontal:false,vertical:true)
                     if let issue {Text(issue).font(.caption).foregroundStyle(MeterTheme.danger).accessibilityIdentifier("task-status-error")}
-                }.padding(14).frame(width:260).textSelection(.disabled).actionProgress()
+                }.padding(14).frame(width:260).textSelection(.disabled)
+                    .background(MeterTheme.background).actionProgress()
+                    // The popover owns its busy gate; do not retain the presenting
+                    // window's disabled environment after a failed save.
+                    .environment(\.isEnabled,true)
             }
     }
 
