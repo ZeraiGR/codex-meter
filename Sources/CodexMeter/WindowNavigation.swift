@@ -36,8 +36,8 @@ import SwiftUI
         guard let dashboard else { return }
         awaitingDashboard = false
         if dashboard.isMiniaturized { dashboard.deminiaturize(nil) }
-        NSApp.activate(ignoringOtherApps: true)
         dashboard.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
