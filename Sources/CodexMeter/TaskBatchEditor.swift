@@ -55,6 +55,45 @@ struct TaskBatchBar:View {
     }
 }
 
+struct TaskSelectionSummary:View {
+    let tasks:[TaskSummary]
+    let busy:Bool
+    let action:(TaskBatchKind)->Void
+    let remove:(String)->Void
+    let clear:()->Void
+    var body:some View {
+        ScrollView {
+            VStack(alignment:.leading,spacing:18) {
+                Label("Выбрано задач: \(tasks.count)",systemImage:"checkmark.square.stack")
+                    .font(.title2.weight(.semibold))
+                Text("Действие применяется ко всем отмеченным задачам. Снимите лишние отметки здесь или флажками слева.")
+                    .foregroundStyle(MeterTheme.secondary)
+                VStack(alignment:.leading,spacing:10) {
+                    Button("Указать тип",systemImage:"tag"){action(.type)}.accessibilityIdentifier("task-summary-type")
+                    Button("Изменить статус",systemImage:"checkmark.circle"){action(.status)}.accessibilityIdentifier("task-summary-status")
+                    Button("Объединить задачи",systemImage:"arrow.triangle.merge"){action(.merge)}.accessibilityIdentifier("task-summary-merge")
+                }.disabled(busy)
+                Button("Снять все отметки",action:clear).accessibilityIdentifier("task-summary-clear")
+                Divider()
+                ForEach(tasks) {summary in
+                    HStack {
+                        VStack(alignment:.leading,spacing:4) {
+                            Text(summary.task.title).font(.callout.weight(.medium)).lineLimit(2)
+                            HStack {Text(summary.task.typeLabel);TaskStatusBadge(status:summary.task.status)}
+                                .font(.caption).foregroundStyle(MeterTheme.secondary)
+                        }
+                        Spacer()
+                        Button {remove(summary.id)} label:{Image(systemName:"xmark.circle").frame(width:44,height:44).contentShape(Rectangle())}
+                            .buttonStyle(.plain)
+                            .help("Снять отметку: \(summary.task.title)").accessibilityLabel("Снять отметку: \(summary.task.title)")
+                            .accessibilityIdentifier("task-summary-remove-\(summary.id)")
+                    }
+                }
+            }.padding(22).frame(maxWidth:.infinity,alignment:.leading)
+        }.accessibilityIdentifier("task-selection-summary")
+    }
+}
+
 struct TaskBatchEditor:View {
     @EnvironmentObject var store:MeterStore
     @Environment(\.dismiss) var dismiss

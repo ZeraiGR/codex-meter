@@ -13,6 +13,10 @@ import SwiftUI
         case .popover: popover = window
         case .dashboard:
             dashboard = window
+            // Join the current workspace, including another app's full-screen
+            // or Stage Manager group, before SwiftUI orders the window forward.
+            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .canJoinAllApplications]
+            window.level = .floating
             if awaitingDashboard { focusDashboard() }
         }
     }
@@ -22,7 +26,7 @@ import SwiftUI
     func showDashboard(open: () -> Void) {
         awaitingDashboard = true
         popover?.orderOut(nil)
-        open()
+        if dashboard == nil { open() }
         focusDashboard()
         // SwiftUI may finish restoring an existing window on the next run loop.
         DispatchQueue.main.async { [weak self] in self?.focusDashboard() }

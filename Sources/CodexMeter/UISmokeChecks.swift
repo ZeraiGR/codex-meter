@@ -42,8 +42,11 @@ import SwiftUI
         }
         settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "First navigation closes panel and focuses dashboard")
+        check(dashboard.level == .floating && dashboard.collectionBehavior.contains(.moveToActiveSpace) && dashboard.collectionBehavior.contains(.canJoinAllApplications) && dashboard.collectionBehavior.contains(.fullScreenAuxiliary),"Dashboard joins the active workspace above other apps, including Stage Manager")
         panel.makeKeyAndOrderFront(nil)
-        navigation.showDashboard {}
+        var reopened=false
+        navigation.showDashboard {reopened=true}
+        check(!reopened,"An existing dashboard is focused directly without SwiftUI reopening or moving its space")
         settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "Existing dashboard comes forward on repeated navigation")
         // Drain showDashboard's deferred focus before starting a different gesture.
@@ -59,6 +62,7 @@ import SwiftUI
         let message = "Не удалось обновить квоту.\n\naccount/rateLimits/read · код -32603\nПодробности ответа сервера"
         Clipboard.copy(message, to: pasteboard)
         check(pasteboard.string(forType: .string) == message, "Copy keeps full multiline error without changing user clipboard")
+        dashboard.orderOut(nil)
         let actionPassed=ActionUIChecks.run()
         let themePassed=ThemeUIChecks.run()
         let browserPassed=BrowserUIChecks.run()

@@ -45,7 +45,8 @@ Screenshots use synthetic example data. The current interface is in Russian.
 The panel uses an opaque background and adapts to macOS light and dark appearance.
 Saving, assigning runs and merging tasks show progress and block repeated actions
 until the displayed statistics are current. In Runs, use independent row checkboxes to build a batch.
-Opening a transcript preserves every check; each checkbox has a 44×44-point target. The contextual “Назначить” action
+While checks remain, the right panel keeps the batch and its actions visible, even after a row click.
+Remove an individual check in either pane, or leave bulk mode to open a card. Each checkbox has a 44×44-point target. The contextual “Назначить” action
 adds the selection to an existing or new task. The whole batch saves atomically;
 an error leaves the original assignments intact. [Interaction research and UX scenarios](docs/multi-selection-ux.md).
 

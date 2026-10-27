@@ -4,21 +4,31 @@ import MeterCore
 struct RunSelectionSummary:View {
     let runs:[RunRecord]
     let assign:()->Void
+    let remove:(String)->Void
+    let clear:()->Void
     var body:some View {
         ScrollView {
             VStack(alignment:.leading,spacing:18) {
                 Label("Выбрано запусков: \(runs.count)",systemImage:"checkmark.square.stack")
                     .font(.title2.weight(.semibold))
-                Text("Назначьте выбранные запуски одной существующей или новой задаче. Клик по карточке откроет переписку и сохранит все отметки.")
+                Text("Назначьте выбранные запуски одной существующей или новой задаче. Отметки можно снять по отдельности или все сразу.")
                     .foregroundStyle(MeterTheme.secondary)
                 Button(action:assign){Label("Назначить задачу",systemImage:"folder.badge.plus")}
                     .accessibilityIdentifier("run-summary-assign")
+                Button("Снять все отметки",action:clear).accessibilityIdentifier("run-summary-clear")
                 Divider()
                 ForEach(runs) {run in
-                    VStack(alignment:.leading,spacing:4) {
-                        Text(run.title).font(.callout.weight(.medium)).lineLimit(2)
-                        Text(run.projectName+" · "+run.started.formatted(date:.abbreviated,time:.shortened))
-                            .font(.caption).foregroundStyle(MeterTheme.secondary)
+                    HStack {
+                        VStack(alignment:.leading,spacing:4) {
+                            Text(run.title).font(.callout.weight(.medium)).lineLimit(2)
+                            Text(run.projectName+" · "+run.started.formatted(date:.abbreviated,time:.shortened))
+                                .font(.caption).foregroundStyle(MeterTheme.secondary)
+                        }
+                        Spacer()
+                        Button {remove(run.id)} label:{Image(systemName:"xmark.circle").frame(width:44,height:44).contentShape(Rectangle())}
+                            .buttonStyle(.plain)
+                            .help("Снять отметку: \(run.title)").accessibilityLabel("Снять отметку: \(run.title)")
+                            .accessibilityIdentifier("run-summary-remove-\(run.id)")
                     }
                 }
             }.padding(22).frame(maxWidth:.infinity,alignment:.leading)
