@@ -231,13 +231,14 @@ def main():
     parser = argparse.ArgumentParser();parser.add_argument('--directory', type=Path, default=ROOT)
     args = parser.parse_args()
     root = args.directory;root.mkdir(parents=True, exist_ok=True, mode=0o700);root.chmod(0o700)
+    controller = Controller(root)
     try:
         with (root / 'settings.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            result = Controller(root).dispatch(json.load(sys.stdin))
+            result = controller.dispatch(json.load(sys.stdin))
         print(json.dumps(result, ensure_ascii=False))
     except RuntimeError as error:
-        print(json.dumps({'error': str(error)}, ensure_ascii=False))
+        print(json.dumps({'error': str(error), 'state': controller.status()}, ensure_ascii=False))
     except Exception:
         print(json.dumps({'error': 'Не удалось применить настройки Telegram. Проверьте пути и повторите попытку.'}, ensure_ascii=False))
 

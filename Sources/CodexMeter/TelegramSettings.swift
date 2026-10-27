@@ -52,7 +52,10 @@ import MeterCore
             defer {busy=false}
             do {
                 let response=try await Task.detached {try bridge(payload,python,directory)}.value
-                if let error=response["error"] as? String {issue=error;return}
+                if let error=response["error"] as? String {
+                    if let state=response["state"] as? [String:Any] {applyConnection(state)}
+                    issue=error;return
+                }
                 apply(response)
                 UserDefaults.standard.set(python,forKey:"telegramPython")
                 if action=="begin" || action=="disconnect" {token=""}
@@ -62,11 +65,15 @@ import MeterCore
         }
     }
 
-    private func apply(_ value:[String:Any]) {
+    private func applyConnection(_ value:[String:Any]) {
         connected=value["connected"] as? Bool ?? false;running=value["running"] as? Bool ?? false
         requestsRunning=value["busy"] as? Bool ?? false
         username=value["username"] as? String ?? "";ownerID=(value["owner_id"] as? NSNumber)?.int64Value ?? 0
         pendingURL=value["pending_url"] as? String ?? ""
+    }
+
+    private func apply(_ value:[String:Any]) {
+        applyConnection(value)
         // Pairing keeps the draft settings until the new owner confirms.
         guard pendingURL.isEmpty else{return}
         workspace=value["workspace"] as? String ?? "";codex=value["codex"] as? String ?? ""
@@ -172,6 +179,7 @@ struct TelegramSettingsCard:View {
                         TextField("Порт локального SSH-туннеля (необязательно)",text:$model.tunnelPort).textFieldStyle(.roundedBorder)
                         Text("Пустое поле — прямой HTTPS. Для туннеля сначала настройте SSH к своему VPS; укажите локальный порт до api.telegram.org:443. Прокси внутри Telegram не применяется к боту.").font(.caption).fixedSize(horizontal:false,vertical:true)
                         HStack {TextField("Python 3.10+ (автоматический поиск)",text:$model.python).textFieldStyle(.roundedBorder);Button("Выбрать Python…"){choose(directory:false){model.python=$0}}}
+                        Button("Проверить Python и состояние модуля"){model.perform("status")}
                         if model.connected {Toggle("Подключить другого бота",isOn:$replacement)}
                     }.padding(.top,8)
                 }

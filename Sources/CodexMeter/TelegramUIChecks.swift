@@ -14,7 +14,7 @@ import MeterCore
                 case "begin":value["pending_url"]="https://t.me/synthetic_bot?start=synthetic"
                 case "pair":value["pending_url"]="";value["connected"]=true;value["running"]=true;value["username"]="synthetic_bot";value["owner_id"]=123
                 case "save":
-                    if failSave {return ["error":"Синтетическая ошибка сохранения"]}
+                    if failSave {value["running"]=false;return ["error":"Синтетическая ошибка сохранения","state":value]}
                     value["permissions"]=request["permissions"]
                 default:break
                 }
@@ -45,7 +45,7 @@ import MeterCore
         model.limits=false;settle()
         backend.failSave=true
         UIAccessibility.press(UIAccessibility.find(host,"telegram-save"));settle()
-        check(model.issue != nil && !model.limits && !model.busy,"Failed permission save keeps the draft and restores controls")
+        check(model.issue != nil && !model.limits && !model.busy && !model.running,"Failed permission save keeps the draft and restores controls")
         backend.failSave=false
         UIAccessibility.press(UIAccessibility.find(host,"telegram-save"));settle()
         check(model.issue==nil && !model.limits && backend.value["permissions"] as? [String:Bool] == ["limits":false,"reminders":true,"window_changes":true,"codex":false],"Retry saves independent Telegram permissions")
