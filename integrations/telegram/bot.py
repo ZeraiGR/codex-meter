@@ -82,7 +82,7 @@ def quota_text(snapshot, now):
     return '\n'.join(lines)
 
 
-def reminders(snapshot, state, now, hours=(48, 24, 6)):
+def reminders(snapshot, state, now, hours=(48, 24, 6), window_changes=True):
     """Return messages and updated dedupe state; caller persists messages atomically."""
     result = []
     if not fresh(snapshot, now):
@@ -95,7 +95,7 @@ def reminders(snapshot, state, now, hours=(48, 24, 6)):
     old = state.get('window')
     moving = provisional(weekly, snapshot)
     if old and old['account'] == account and abs(old['reset'] - reset) > 90:
-        if not old.get('provisional'):
+        if window_changes and not old.get('provisional'):
             result.append('Сервер изменил недельное окно. Прежний срок: ' + stamp(old['reset'])
                           + '. Точное время изменения между опросами неизвестно.\n' + quota_text(snapshot, now))
     same = old and old['account'] == account and abs(old['reset'] - reset) <= 90
@@ -298,7 +298,7 @@ class Bot:
         if nav:
             buttons.append(nav)
         self.enqueue('Сессии. Выбери кнопкой или /use ID.\n' + '\n'.join(lines),
-                     markup=dict(inline_keyboard=buttons))
+                     markup=dict(inline_keyboard=buttons), category='codex')
 
     def close(self):
         for job, _ in self.jobs.values():
@@ -308,13 +308,29 @@ class Bot:
     def persist(self):
         save(self.state_path, self.state)
 
-    def enqueue(self, text, sid=None, markup=None):
+    def allowed(self, category):
+        if category == 'service':
+            return True
+        permissions = self.config.get('permissions')
+        if permissions is None:
+            return True  # Preserve pre-settings installations.
+        if category == 'legacy':
+            return all(permissions.get(key, False) for key in ('limits', 'reminders', 'window_changes', 'codex'))
+        return permissions.get(category, False) is True
+
+    def enqueue(self, text, sid=None, markup=None, category=None):
+        category = category or ('codex' if sid else 'service')
+        if not self.allowed(category):
+            return
         # Repeat the session label on every chunk, including retried deliveries.
         prefix = self.label(sid) + '\n' if sid else ''
         entries = []
         for i in range(0, len(text), 1800):
             chunk = prefix + text[i:i+1800]
-            entries.append(dict(text=chunk, reply_markup=markup) if markup else chunk)
+            if 'permissions' in self.config:
+                entries.append(dict(text=chunk, category=category, **({'reply_markup': markup} if markup else {})))
+            else:
+                entries.append(dict(text=chunk, reply_markup=markup) if markup else chunk)
         self.state.setdefault('outbox', []).extend(entries)
         self.persist()
 
@@ -330,6 +346,10 @@ class Bot:
             message = dict(callback.get('message', {}))
             message['from'] = callback.get('from', {})
             if not authorized(message, self.owner):
+                return
+            if not self.allowed('codex'):
+                try:self.telegram.call('answerCallbackQuery', callback_query_id=callback['id'], text='Запросы Codex отключены в настройках Meter.')
+                except Exception:pass
                 return
             data = callback.get('data', '')
             if data.startswith('use:'):
@@ -352,13 +372,20 @@ class Bot:
         command = parts[0].split('@')[0]
         argument = parts[1] if len(parts) > 1 else ''
         sid = self.state['active_session']
-        if command in ('/start', '/help'):
+        if command in ('/start', '/help') and not self.allowed('codex'):
+            self.enqueue('Telegram подключён. ' + ('/limits — квота. ' if self.allowed('limits') else '')
+                         + 'Запросы Codex отключены. Разрешения меняются в настройках Codex Meter.')
+        elif command in ('/start', '/help'):
             self.enqueue('/limits — свежие лимиты\n/new [название] — новый диалог\n'
                          '/sessions — список и кнопки выбора\n/use ID — выбрать диалог\n'
                          '/cancel — остановить запрос выбранной сессии\n/status — состояние\n'
                          'Обычный текст отправляется в выбранную сессию. '
                          'Все сессии используют общую рабочую папку: ' + self.config['workspace']
-                         + '. Режим: ' + self.config.get('sandbox', 'read-only'))
+                         + '. Режим: ' + self.config.get('sandbox', 'read-only'), category='codex')
+        elif command == '/limits' and not self.allowed('limits'):
+            self.enqueue('Ответы о квоте отключены в настройках Codex Meter.')
+        elif command in ('/sessions', '/use', '/new') and not self.allowed('codex'):
+            self.enqueue('Запросы и диалоги Codex отключены в настройках Codex Meter.')
         elif command == '/limits':
             self.want_limits = True
             self.next_refresh = 0
@@ -367,9 +394,9 @@ class Bot:
         elif command == '/use':
             self.select_session(argument.strip())
         elif command == '/status':
-            self.enqueue(('Codex выполняет запрос.' if sid in self.jobs else 'Codex готов к запросу.')
+            self.enqueue(('Запросы Codex отключены.' if not self.allowed('codex') else 'Codex выполняет запрос.' if sid in self.jobs else 'Codex готов к запросу.')
                          + f' Активных запросов: {len(self.jobs)}/{self.max_parallel}.'
-                         + '\n' + quota_text(self.snapshot, time.time()), sid=sid)
+                         + ('\n' + quota_text(self.snapshot, time.time()) if self.allowed('limits') else ''), category='limits' if self.allowed('limits') else 'service')
         elif command == '/cancel':
             if sid in self.jobs:
                 self.jobs[sid][0].cancel()
@@ -379,6 +406,8 @@ class Bot:
             self.enqueue('Создана и выбрана новая сессия. Отправь запрос.', sid=sid)
         elif text.startswith('/'):
             self.enqueue('Неизвестная команда. /help')
+        elif not self.allowed('codex'):
+            self.enqueue('Выполнение запросов Codex отключено в настройках Meter.')
         elif sid in self.jobs:
             self.enqueue('Запрос уже выполняется. Дождись ответа или отправь /cancel. '
                          'Для другой задачи: /new название.', sid=sid)
@@ -415,25 +444,36 @@ class Bot:
             try:
                 self.snapshot = self.quota_future.result()
                 self.state['snapshot'] = self.snapshot
-                messages = reminders(self.snapshot, self.state, now, self.config.get('reminder_hours', [48, 24, 6]))
+                messages = reminders(self.snapshot, self.state, now,
+                                     self.config.get('reminder_hours', [48, 24, 6]) if self.allowed('reminders') else [],
+                                     window_changes=self.allowed('window_changes'))
                 # Persist dedupe and pending messages together, including failed sends.
                 for message in messages:
-                    self.state.setdefault('outbox', []).append(message)
+                    category = 'window_changes' if message.startswith('Сервер изменил') else 'reminders'
+                    if 'permissions' in self.config:
+                        self.state.setdefault('outbox', []).append(dict(text=message, category=category))
+                    else:
+                        self.state.setdefault('outbox', []).append(message)
                 self.persist()
                 self.next_refresh = now + 60
             except Exception:
                 self.next_refresh = now + 300
                 if self.want_limits:
-                    self.enqueue('Обновить лимиты не удалось. Ниже последнее измерение.')
+                    self.enqueue('Обновить лимиты не удалось. Ниже последнее измерение.', category='limits')
             self.quota_future = None
             if self.want_limits:
-                self.enqueue(quota_text(self.snapshot, now))
+                self.enqueue(quota_text(self.snapshot, now), category='limits')
                 self.want_limits = False
-        if not self.quota_future and now >= self.next_refresh:
+        if not self.quota_future and now >= self.next_refresh and (self.want_limits or self.allowed('reminders') or self.allowed('window_changes')):
             self.quota_future = self.pool.submit(self.refresh)
         if self.state.get('outbox'):
             entry = self.state['outbox'][0]
-            payload = dict(text=entry) if isinstance(entry, str) else entry
+            payload = dict(text=entry) if isinstance(entry, str) else dict(entry)
+            category = payload.pop('category', 'legacy')
+            if not self.allowed(category):
+                self.state['outbox'].pop(0)
+                self.persist()
+                return
             self.telegram.call('sendMessage', chat_id=self.owner, **payload)
             self.state['outbox'].pop(0)
             self.persist()

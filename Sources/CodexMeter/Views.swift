@@ -763,6 +763,7 @@ struct SettingsView:View {
                 }
                 SoftwareUpdateCard(updater:store.updates)
                 ConnectionCard()
+                TelegramSettingsCard()
                 Card {
                     Label(store.integrationInstalled ? "Учёт задач подключён":"Подключение учёта задач",systemImage:"link").font(.headline)
                     Text("Codex связывает запуски с задачей и проверяет прогноз. Статус меняете только вы в карточке задачи или через массовое действие.").font(.callout)

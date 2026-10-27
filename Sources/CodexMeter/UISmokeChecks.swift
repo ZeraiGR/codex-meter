@@ -73,9 +73,10 @@ import SwiftUI
         let executionPassed=ExecutionUIChecks.run()
         let taskBatchPassed=TaskBatchUIChecks.run()
         let taskTypePassed=TaskTypeUIChecks.run()
+        let telegramPassed=TelegramUIChecks.run()
         let taskStatusPassed=TaskStatusUIChecks.run()
         let taskCardMergePassed=TaskCardMergeUIChecks.run()
         let updateSchedulePassed=UpdateScheduleChecks.run()
-        return taskStatusPassed && actionPassed && themePassed && browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && executionPassed && taskBatchPassed && taskTypePassed && taskCardMergePassed && updateSchedulePassed && failures == 0
+        return telegramPassed && taskStatusPassed && actionPassed && themePassed && browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && executionPassed && taskBatchPassed && taskTypePassed && taskCardMergePassed && updateSchedulePassed && failures == 0
     }
 }
