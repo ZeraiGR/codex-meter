@@ -13,6 +13,7 @@ import sys
 import time
 
 from bot import ROOT, Telegram, save
+from control import DEFAULT_PERMISSIONS
 
 
 def main():
@@ -21,6 +22,7 @@ def main():
     parser.add_argument('--codex', type=Path, required=True)
     parser.add_argument('--meter', type=Path, required=True)
     parser.add_argument('--sandbox', choices=['read-only', 'workspace-write'], default='read-only')
+    parser.add_argument('--allow-codex', action='store_true', help='Разрешить выполнение запросов Codex и отправку ответов')
     args = parser.parse_args()
     for path in [args.workspace, args.codex, args.meter]:
         if not path.expanduser().exists():
@@ -55,10 +57,11 @@ def main():
     os.chmod(ROOT / 'token', 0o600)
     config = dict(owner_id=owner, workspace=str(args.workspace.expanduser().resolve()),
                   codex=str(args.codex.expanduser().resolve()), meter=str(args.meter.expanduser().resolve()),
-                  sandbox=args.sandbox, reminder_hours=[48, 24, 6])
+                  sandbox=args.sandbox, reminder_hours=[48, 24, 6], bot_username=identity['username'],
+                  permissions=dict(DEFAULT_PERMISSIONS, codex=args.allow_codex))
     save(ROOT / 'config.json', config)
     # Changing bot/owner must not expose old replies or resume another conversation.
-    save(ROOT / 'state.json', {'offset': offset, 'outbox': ['Codex Meter подключён. /limits показывает остаток; обычный текст отправляет запрос Codex.']})
+    save(ROOT / 'state.json', {'offset': offset, 'outbox': [dict(text='Codex Meter подключён. /limits показывает остаток. Запросы Codex '+('разрешены.' if args.allow_codex else 'выключены.'), category='service')]})
     shutil.copyfile(Path(__file__).with_name('bot.py'), ROOT / 'bot.py')
     os.chmod(ROOT / 'bot.py', 0o600)
     plist = Path.home() / 'Library/LaunchAgents' / (label + '.plist')
@@ -71,7 +74,7 @@ def main():
         plistlib.dump(payload, stream)
     os.chmod(plist, 0o600)
     subprocess.run(['launchctl', 'bootstrap', domain, str(plist)], check=True)
-    print('Бот привязан к твоему аккаунту и запущен. Открой чат и отправь /limits.')
+    print('Бот привязан к твоему аккаунту и запущен. Открой чат и отправь /limits. Разрешения доступны в настройках приложения.')
 
 
 if __name__ == '__main__':

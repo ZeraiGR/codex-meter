@@ -410,18 +410,20 @@ struct TasksView:View {
                     }.font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
                 if selectionMode && showUnassigned {
-                    Text("Флажки выбирают запуски. Клик по карточке открывает переписку и сохраняет отметки.").font(.caption2).foregroundStyle(MeterTheme.secondary)
+                    Text("Пока есть отметки, справа доступны массовые действия. Для просмотра переписки снимите отметки или выключите массовый выбор.").font(.caption2).foregroundStyle(MeterTheme.secondary)
                 }
             }.padding(16).frame(minWidth:310,idealWidth:350,maxWidth:420,maxHeight:.infinity,alignment:.top)
             Group {
             if showUnassigned {
-                if let run=store.runs.first(where:{$0.id==previewRun}) {
+                if !runsToAssign.isEmpty {
+                    RunSelectionSummary(runs:runsToAssign,assign:{assigning=RunAssignment(runs:runsToAssign)},remove:{checkedRuns.remove($0)},clear:{checkedRuns=[]})
+                } else if let run=store.runs.first(where:{$0.id==previewRun}) {
                     RunDetailView(run:run,assign:{assigning=RunAssignment(runs:[run])}).id(run.id)
-                } else if !runsToAssign.isEmpty {
-                    RunSelectionSummary(runs:runsToAssign,assign:{assigning=RunAssignment(runs:runsToAssign)})
                 } else {
                     ContentUnavailableView("Выберите запуск",systemImage:"bubble.left.and.bubble.right",description:Text("Справа появятся ваши запросы, ответы Codex и контекст переписки. После просмотра запуск можно назначить задаче."))
                 }
+            } else if !tasksToActOn.isEmpty {
+                TaskSelectionSummary(tasks:tasksToActOn,busy:store.isPerformingAction,action:{taskBatch=TaskBatchRequest(tasks:tasksToActOn,kind:$0)},remove:{checkedTasks.remove($0)},clear:{checkedTasks=[]})
             } else if selectedTask == nil {
                 TaskEmptyState()
             } else {
@@ -763,6 +765,7 @@ struct SettingsView:View {
                 }
                 SoftwareUpdateCard(updater:store.updates)
                 ConnectionCard()
+                TelegramSettingsCard()
                 Card {
                     Label(store.integrationInstalled ? "Учёт задач подключён":"Подключение учёта задач",systemImage:"link").font(.headline)
                     Text("Codex связывает запуски с задачей и проверяет прогноз. Статус меняете только вы в карточке задачи или через массовое действие.").font(.callout)

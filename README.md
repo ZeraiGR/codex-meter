@@ -45,7 +45,8 @@ Screenshots use synthetic example data. The current interface is in Russian.
 The panel uses an opaque background and adapts to macOS light and dark appearance.
 Saving, assigning runs and merging tasks show progress and block repeated actions
 until the displayed statistics are current. In Runs, use independent row checkboxes to build a batch.
-Opening a transcript preserves every check; each checkbox has a 44×44-point target. The contextual “Назначить” action
+While checks remain, the right panel keeps the batch and its actions visible, even after a row click.
+Remove an individual check in either pane, or leave bulk mode to open a card. Each checkbox has a 44×44-point target. The contextual “Назначить” action
 adds the selection to an existing or new task. The whole batch saves atomically;
 an error leaves the original assignments intact. [Interaction research and UX scenarios](docs/multi-selection-ux.md).
 
@@ -213,3 +214,8 @@ dates. Since 1.4.14, `task-resume` only binds tracking; `task-end` and `task-pau
 reject changes. Update both the app and the separately installed integration skill.
 
 Since 1.4.15, tasks without a type have a visible badge and a one-click filter with a count. The checklist icon beside Tasks/Runs toggles bulk-selection checkboxes; turning it off clears checks and preserves the open card.
+
+Telegram is an optional module configured in Settings. Each user pairs their own bot
+and chooses quota replies, reminders and window-change alerts. Codex execution
+requires a separate advanced setup and is not enabled by this module. Requires Python 3.10+; no shared
+bot token or recipient is included. [Setup and permissions](docs/telegram.md).

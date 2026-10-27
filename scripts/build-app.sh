@@ -35,6 +35,8 @@ PYSPARKLE
 ditto "$task_sparkle" "$task_app/Contents/Frameworks/Sparkle.framework"
 cp "$task_root/Info.plist" "$task_app/Contents/Info.plist"
 cp -R "$task_root/Integration" "$task_app/Contents/Resources/"
+mkdir -p "$task_app/Contents/Resources/Telegram"
+cp "$task_root/integrations/telegram/bot.py" "$task_root/integrations/telegram/control.py" "$task_app/Contents/Resources/Telegram/"
 cp .vendor/sparkle-tools/LICENSE "$task_app/Contents/Resources/Sparkle-LICENSE.txt"
 task_iconset="$task_root/dist/AppIcon.iconset"
 task_icon_command=(swift)

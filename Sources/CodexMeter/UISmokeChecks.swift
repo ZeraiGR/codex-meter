@@ -42,8 +42,11 @@ import SwiftUI
         }
         settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "First navigation closes panel and focuses dashboard")
+        check(dashboard.level == .floating && dashboard.collectionBehavior.contains(.moveToActiveSpace) && dashboard.collectionBehavior.contains(.canJoinAllApplications) && dashboard.collectionBehavior.contains(.fullScreenAuxiliary),"Dashboard joins the active workspace above other apps, including Stage Manager")
         panel.makeKeyAndOrderFront(nil)
-        navigation.showDashboard {}
+        var reopened=false
+        navigation.showDashboard {reopened=true}
+        check(!reopened,"An existing dashboard is focused directly without SwiftUI reopening or moving its space")
         settle(until: { !panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow })
         check(!panel.isVisible && dashboard.isVisible && dashboard.isKeyWindow, "Existing dashboard comes forward on repeated navigation")
         // Drain showDashboard's deferred focus before starting a different gesture.
@@ -54,11 +57,15 @@ import SwiftUI
         panel.makeKeyAndOrderFront(nil)
         navigation.showDashboard {}; settle(until: { !dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow })
         check(!dashboard.isMiniaturized && !panel.isVisible && dashboard.isKeyWindow, "Minimized dashboard is restored")
+        dashboard.close();settle()
+        navigation.showDashboard {};settle(until:{dashboard.isVisible && dashboard.isKeyWindow})
+        check(dashboard.isVisible && dashboard.isKeyWindow,"Closed dashboard can be shown again without opening a second scene")
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         let message = "Не удалось обновить квоту.\n\naccount/rateLimits/read · код -32603\nПодробности ответа сервера"
         Clipboard.copy(message, to: pasteboard)
         check(pasteboard.string(forType: .string) == message, "Copy keeps full multiline error without changing user clipboard")
+        dashboard.orderOut(nil)
         let actionPassed=ActionUIChecks.run()
         let themePassed=ThemeUIChecks.run()
         let browserPassed=BrowserUIChecks.run()
@@ -73,9 +80,10 @@ import SwiftUI
         let executionPassed=ExecutionUIChecks.run()
         let taskBatchPassed=TaskBatchUIChecks.run()
         let taskTypePassed=TaskTypeUIChecks.run()
+        let telegramPassed=TelegramUIChecks.run()
         let taskStatusPassed=TaskStatusUIChecks.run()
         let taskCardMergePassed=TaskCardMergeUIChecks.run()
         let updateSchedulePassed=UpdateScheduleChecks.run()
-        return taskStatusPassed && actionPassed && themePassed && browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && executionPassed && taskBatchPassed && taskTypePassed && taskCardMergePassed && updateSchedulePassed && failures == 0
+        return telegramPassed && taskStatusPassed && actionPassed && themePassed && browserPassed && headingPassed && assignmentPassed && costPassed && chooserPassed && quotaTimePassed && paymentDraftPassed && connectionPassed && taskListPassed && executionPassed && taskBatchPassed && taskTypePassed && taskCardMergePassed && updateSchedulePassed && failures == 0
     }
 }
