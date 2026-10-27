@@ -14,6 +14,10 @@ enum MeterTheme {
     static let accent=adaptive("meter.accent",light:0x006B60,dark:0x62D9C6)
     static let warning=adaptive("meter.warning",light:0x925000,dark:0xFFD080)
     static let danger=adaptive("meter.danger",light:0xB42332,dark:0xFF929C)
+    static let inProgress=adaptive("meter.inProgress",light:0x175CD3,dark:0x91C2FF)
+    static let success=adaptive("meter.success",light:0x176B3A,dark:0x83DEAA)
+    static let inProgressBackground=adaptive("meter.inProgressBackground",light:0xE8F0FE,dark:0x1D3555)
+    static let successBackground=adaptive("meter.successBackground",light:0xE5F4EA,dark:0x183E2A)
 }
 
 /// Disable keyboard actions as well as mouse input. An opaque progress card stays

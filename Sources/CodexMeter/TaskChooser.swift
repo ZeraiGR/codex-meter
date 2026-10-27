@@ -85,10 +85,10 @@ struct TaskChooser: View {
                             HStack(spacing:8) {
                                 Text(row.kind).lineLimit(1)
                                 Spacer(minLength:4)
-                                Text(row.statusLabel)
+                                TaskStatusBadge(status:row.status)
                                 Text(row.activity,format:.dateTime.day().month(.abbreviated).year())
                             }.font(.caption).foregroundStyle(.primary)
-                        }.frame(height:56,alignment:.center).padding(.vertical,3)
+                        }.frame(height:64,alignment:.center).padding(.vertical,3)
                             .contentShape(Rectangle()).tag(row.id).id(row.id)
                             .help("\(row.title)\n\(row.kind) · \(row.statusLabel)\nЗапросов: \(row.runCount) · ID: \(row.id)")
                             .accessibilityIdentifier("task-choice-\(row.id)")
