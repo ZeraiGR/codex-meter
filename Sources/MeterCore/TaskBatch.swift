@@ -2,13 +2,13 @@ import Foundation
 
 extension Database {
     public func updateTaskStatuses(_ ids:[String],status:String) throws {
-        guard ["active","paused","completed","cancelled","failed"].contains(status) else {throw MeterError("Неизвестный статус задачи")}
+        guard ["active","paused","ongoing","completed","cancelled","failed"].contains(status) else {throw MeterError("Неизвестный статус задачи")}
         try transaction {
             let tasks=try selectedTasks(ids),now=Date()
             for var task in tasks {
                 guard task.status != status else {continue}
                 task.status=status
-                task.finished=["active","paused"].contains(status) ? nil:now
+                task.finished=["active","paused","ongoing"].contains(status) ? nil:now
                 try saveTask(task)
             }
         }

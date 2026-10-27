@@ -227,7 +227,7 @@ public struct TaskSummary: Identifiable {
         Self.unionSeconds(runs.map { ($0.started, $0.ended ?? Date()) })
     }
     public var wallSeconds: Double {
-        let ongoing=["active","paused"].contains(task.status) || runs.contains{$0.ended==nil}
+        let ongoing=["active","paused","ongoing"].contains(task.status) || runs.contains{$0.ended==nil}
         let end=ongoing ? Date():max(task.finished ?? task.created,runs.compactMap(\.ended).max() ?? task.created)
         return max(0,end.timeIntervalSince(min(task.created,runs.map(\.started).min() ?? task.created)))
     }

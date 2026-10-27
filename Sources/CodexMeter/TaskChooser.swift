@@ -15,6 +15,7 @@ struct TaskChoice: Identifiable, Equatable {
     var statusLabel: String {
         switch status {
         case "active": return "В работе"
+        case "ongoing": return "Постоянная"
         case "completed": return "Завершена"
         case "cancelled": return "Отменена"
         case "failed": return "Не удалась"

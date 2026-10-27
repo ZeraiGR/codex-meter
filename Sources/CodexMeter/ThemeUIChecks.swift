@@ -42,7 +42,7 @@ import MeterCore
                         minimum=min(minimum,(max(first,second)+0.05)/(min(first,second)+0.05))
                     }
                 }
-                for status in ["active","completed","paused","cancelled","failed"] {
+                for status in ["active","completed","paused","ongoing","cancelled","failed"] {
                     let first=luminance(TaskStatusBadge.color(for:status)),second=luminance(TaskStatusBadge.background(for:status))
                     minimum=min(minimum,(max(first,second)+0.05)/(min(first,second)+0.05))
                 }

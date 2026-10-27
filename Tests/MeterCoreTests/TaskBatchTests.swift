@@ -21,6 +21,12 @@ extension MeterCoreTests {
         XCTAssertThrowsError(try db.updateTaskStatuses(["a","missing"],status:"failed"))
         XCTAssertEqual(try db.task("a")?.status,"paused")
         XCTAssertThrowsError(try db.updateTaskStatuses(["a"],status:"invalid"))
+        try db.updateTaskStatuses(["a","b"],status:"ongoing")
+        XCTAssertEqual(try db.task("a")?.status,"ongoing")
+        XCTAssertNil(try db.task("a")?.finished)
+        try db.saveRun(RunRecord(id:"next",thread:"thread",started:epoch,tokens:.init(input:10),taskID:"a"))
+        XCTAssertEqual(try db.task("a")?.status,"ongoing")
+        XCTAssertEqual(try db.summaries().first{$0.id=="a"}?.tokens.total,133)
     }
 
     func testBatchMergeIsAtomicAndPreservesBindingsAndTotals() throws {

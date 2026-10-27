@@ -289,7 +289,7 @@ enum Format {
         if seconds>=86400{return "\(seconds/86400) дн. \((seconds%86400)/3600) ч"}
         return "\(seconds/3600) ч \((seconds%3600)/60) мин"
     }
-    static func status(_ s:String) -> String {["active":"В работе","paused":"Ожидает","completed":"Завершена","cancelled":"Отменена","failed":"Не удалась"][s] ?? s}
+    static func status(_ s:String) -> String {["active":"В работе","paused":"Ожидает","ongoing":"Постоянная","completed":"Завершена","cancelled":"Отменена","failed":"Не удалась"][s] ?? s}
     static func color(_ remaining:Double?) -> Color {guard let remaining else{return .secondary};return remaining<=10 ? MeterTheme.danger:remaining<=50 ? MeterTheme.warning:MeterTheme.accent}
 }
 
