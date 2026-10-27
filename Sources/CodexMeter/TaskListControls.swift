@@ -32,6 +32,7 @@ struct TaskListControls:View {
                             Text("Все статусы").tag("")
                             Text("В работе").tag("active")
                             Text("Ожидает").tag("paused")
+                            Text("Постоянная").tag("ongoing")
                             Text("Завершена").tag("completed")
                             Text("Отменена").tag("cancelled")
                             Text("Не удалась").tag("failed")

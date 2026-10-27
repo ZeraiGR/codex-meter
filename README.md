@@ -28,7 +28,8 @@ context compaction without a new user request are labelled explicitly, with thei
 token usage and task bindings preserved.
 
 Task statuses use labelled colour badges: blue for active work and green for completed
-tasks. Type reminders stay readable when a run is selected in either appearance.
+tasks. Click the detail badge to choose a status. Ongoing tasks ("Постоянная") stay
+open for recurring context without appearing as active work. Type reminders stay readable when a run is selected in either appearance.
 
 ## Your quota, one click away
 

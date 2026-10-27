@@ -429,7 +429,7 @@ struct TasksView:View {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
                         HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold)).accessibilityIdentifier("task-detail-title");Text(s.task.typeLabel).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
-                        TaskStatusBadge(status:s.task.status).accessibilityIdentifier("task-detail-status")
+                        TaskStatusControl(task:s.task)
                         if store.tasks.count>1 {
                             Button("Объединить с задачей…",systemImage:"arrow.triangle.merge") {
                                 taskBatch=TaskBatchRequest(tasks:[s],kind:.merge)
@@ -442,8 +442,9 @@ struct TasksView:View {
                         TaskOverview(summary:s)
                         TaskExecutionView(runs:s.runs)
                         HStack {
-                            Button(s.task.status=="completed" ? "Открыть заново":"Завершить") {var task=s.task;task.status=task.status=="completed" ? "active":"completed";task.finished=task.status=="completed" ? Date():nil;save(task)}
-                            if s.task.status != "cancelled" {Button("Отменить задачу"){var task=s.task;task.status="cancelled";task.finished=Date();save(task)}}
+                            Button(s.task.status=="completed" ? "Открыть заново":"Завершить") {changeStatus(s.task.id,to:s.task.status=="completed" ? "active":"completed")}
+                                .accessibilityIdentifier("task-complete")
+                            if s.task.status != "cancelled" {Button("Отменить задачу"){changeStatus(s.task.id,to:"cancelled")}}
                         }
                         if !s.runs.isEmpty {
                             Text("Переписка задачи").font(.headline)
@@ -497,7 +498,11 @@ struct TasksView:View {
         .sheet(isPresented:$managingTypes){TaskTypesSheet()}
         .sheet(item:$assigning){selection in AssignEditor(runs:selection.runs,onAssigned:{checkedRuns.subtract(selection.runs.map(\.id))})}
     }
-    func save(_ task:WorkTask){store.saveTask(task) {result in if case .failure(let error)=result {store.error=error.localizedDescription}}}
+    func changeStatus(_ id:String,to status:String) {
+        store.performAction("Меняем статус задачи…",operation:{try $0.updateTaskStatuses([id],status:status)},completion:{result in
+            if case .failure(let error)=result {store.error=error.localizedDescription}
+        })
+    }
 }
 
 struct TaskEmptyState:View {
