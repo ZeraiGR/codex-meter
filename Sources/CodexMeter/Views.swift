@@ -82,7 +82,7 @@ struct PopoverView:View {
                     if let error=store.error {ErrorBanner(message:error)}
                     if let active=store.tasks.first(where:{$0.task.status=="active"}) {
                         Card {
-                            Label("В работе",systemImage:"bolt.fill").font(.caption).foregroundStyle(MeterTheme.accent)
+                            TaskStatusBadge(status:active.task.status)
                             Text(active.task.title).font(.callout.weight(.medium)).lineLimit(2)
                             HStack{Text(Format.tokens(active.tokens.total)+" токенов");Spacer();Text(Format.time(active.activeSeconds))}.font(.caption).foregroundStyle(MeterTheme.secondary)
                         }
@@ -282,8 +282,15 @@ struct TasksView:View {
                                                 Button {
                                                     if let task=store.tasks.first(where:{$0.id==run.taskID})?.task {editing=task}
                                                     else {assigning=RunAssignment(runs:[run])}
-                                                } label:{Label("Нужно указать тип задачи",systemImage:"tag")}
-                                                    .buttonStyle(.plain).font(.caption2).foregroundStyle(MeterTheme.warning)
+                                                } label:{
+                                                    Label("Нужно указать тип задачи",systemImage:"tag")
+                                                        .font(.caption2.weight(.semibold))
+                                                        .padding(.horizontal,6).padding(.vertical,3)
+                                                        .foregroundStyle(MeterTheme.warning)
+                                                        .background(MeterTheme.background,in:Capsule())
+                                                        .overlay(Capsule().strokeBorder(MeterTheme.warning.opacity(0.6)))
+                                                }
+                                                    .buttonStyle(.plain)
                                                     .accessibilityIdentifier("run-needs-type-\(run.id)")
                                             }
                                         }
@@ -362,7 +369,8 @@ struct TasksView:View {
                                                 .overlay(Capsule().strokeBorder(MeterTheme.warning.opacity(0.6)))
                                                 .accessibilityIdentifier("task-unclassified-badge-\(summary.id)")
                                         } else {Text(summary.task.typeLabel).lineLimit(1)}
-                                        Spacer();Text(Format.status(summary.task.status))
+                                        Spacer();TaskStatusBadge(status:summary.task.status)
+                                            .accessibilityIdentifier("task-status-\(summary.id)")
                                     }.font(.caption2).foregroundStyle(.primary)
                                     HStack{Text(Format.tokens(summary.tokens.total));Text("·");Text(Format.time(summary.activeSeconds));Spacer();Text(summary.rubles.map{Format.rub($0)} ?? summary.measuredRubles.map{Format.rub($0)+" учтено"} ?? "Нет оценки")}.font(.caption).monospacedDigit()
                                     if let dollars=store.exchangeRate?.dollars(for:summary.rubles ?? summary.measuredRubles) {
@@ -421,6 +429,7 @@ struct TasksView:View {
                 VStack(alignment:.leading,spacing:18) {
                     if let s=selectedTask {
                         HStack(alignment:.top){VStack(alignment:.leading,spacing:6){Text(s.task.title).font(.title2.weight(.semibold)).accessibilityIdentifier("task-detail-title");Text(s.task.typeLabel).foregroundStyle(MeterTheme.secondary)};Spacer();Button{editing=s.task}label:{Image(systemName:"pencil")}}
+                        TaskStatusBadge(status:s.task.status).accessibilityIdentifier("task-detail-status")
                         if store.tasks.count>1 {
                             Button("Объединить с задачей…",systemImage:"arrow.triangle.merge") {
                                 taskBatch=TaskBatchRequest(tasks:[s],kind:.merge)
@@ -527,6 +536,7 @@ struct TaskEditor:View {
     var body:some View {
         VStack(alignment:.leading,spacing:18) {
             Text("Пользовательская задача").font(.title2)
+            TaskStatusBadge(status:task.status)
             TextField("Конкретный результат: ревью API заказов",text:$task.title)
             TaskTypePicker(selection:Binding(get:{task.typeID ?? ""},set:{task.typeID=$0.isEmpty ? nil:$0}))
             if task.typeID==nil {

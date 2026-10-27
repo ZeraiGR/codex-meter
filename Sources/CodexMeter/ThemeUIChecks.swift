@@ -19,6 +19,10 @@ import MeterCore
         let task=WorkTask(id:"demo-review",title:"Ревью API заказов",kind:"code-review",status:"completed")
         let run=RunRecord(id:"demo-run",thread:"demo",started:Date().addingTimeInterval(-1800),ended:Date(),tokens:TokenCount(input:450000,cached:300000,output:32000),model:"Codex",title:"Проверить обработку ошибок",outcome:"completed",taskID:task.id)
         store.tasks=[TaskSummary(task:task,runs:[run],quotaPoints:3.5,rubles:24.5,quotaQuality:"Полное покрытие",weeklyQuota:WeeklyQuotaUsage(points:3.5,coverage:1,windowCount:1))]
+        for (status,title) in [("active","Разработка редактора документов"),("paused","Проверка требований"),("cancelled","Перенос старого отчёта"),("failed","Неудачная сборка проекта")] {
+            let sample=WorkTask(id:"status-"+status,title:title,kind:"",status:status)
+            store.tasks.append(TaskSummary(task:sample,runs:[],quotaPoints:nil,rubles:nil,quotaQuality:"Нет измерения"))
+        }
         var failures=0
         func luminance(_ color:Color)->Double {
             guard let rgb=NSColor(color).usingColorSpace(.sRGB) else{return -1}
@@ -38,17 +42,28 @@ import MeterCore
                         minimum=min(minimum,(max(first,second)+0.05)/(min(first,second)+0.05))
                     }
                 }
+                for status in ["active","completed","paused","cancelled","failed"] {
+                    let first=luminance(TaskStatusBadge.color(for:status)),second=luminance(TaskStatusBadge.background(for:status))
+                    minimum=min(minimum,(max(first,second)+0.05)/(min(first,second)+0.05))
+                }
             }
             let ok=minimum>=4.5
             print("\(ok ? "PASS":"FAIL") \(name) semantic text contrast at least 4.5:1 (minimum \(String(format:"%.2f",minimum)))")
             if !ok {failures += 1}
             for dashboard in [false,true] {
-                let size=NSSize(width:dashboard ? 980:420,height:dashboard ? 740:550)
+                let size=NSSize(width:dashboard ? 980:420,height:dashboard ? 740:660)
                 let host=NSHostingView(rootView:Group {if dashboard {DashboardView()} else {PopoverView()}}.environmentObject(store).environment(\.locale,Locale(identifier:"ru_RU")))
                 let window=NSWindow(contentRect:NSRect(origin:NSPoint(x:-10000,y:-10000),size:size),styleMask:[.titled],backing:.buffered,defer:false)
                 window.isReleasedWhenClosed=false;window.appearance=style;window.contentView=host;NSApp.activate(ignoringOtherApps:true);window.makeKeyAndOrderFront(nil)
                 RunLoop.main.run(until:Date().addingTimeInterval(0.3))
                 UIAccessibility.capture(host,"theme-\(name)-\(dashboard ? "tasks":"popover")")
+                if dashboard {
+                    // Synthetic data only: render both primary states in the selected card.
+                    store.tasks[0].task.status="active"
+                    RunLoop.main.run(until:Date().addingTimeInterval(0.3))
+                    UIAccessibility.capture(host,"task-status-active-"+name)
+                    store.tasks[0].task.status="completed"
+                }
                 window.orderOut(nil)
             }
         }

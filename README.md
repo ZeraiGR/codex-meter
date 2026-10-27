@@ -27,6 +27,9 @@ can open while another process writes; no database server is required. Turns con
 context compaction without a new user request are labelled explicitly, with their
 token usage and task bindings preserved.
 
+Task statuses use labelled colour badges: blue for active work and green for completed
+tasks. Type reminders stay readable when a run is selected in either appearance.
+
 ## Your quota, one click away
 
 See how much Codex quota remains, when it resets and how usage compares with the

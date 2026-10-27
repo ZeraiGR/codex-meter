@@ -69,6 +69,13 @@ import MeterCore
         let up=NSEvent.mouseEvent(with:.leftMouseUp,location:point,modifierFlags:[],timestamp:0.01,windowNumber:window.windowNumber,context:nil,eventNumber:2,clickCount:1,pressure:0)!
         NSApp.postEvent(up,atStart:true);NSApp.sendEvent(down);settle()
         check(table.selectedRow==row,"Mouse click selects a run")
+        for (name,appearance) in [("light",NSAppearance.Name.aqua),("dark",.darkAqua)] {
+            window.appearance=NSAppearance(named:appearance);window.makeFirstResponder(table);settle()
+            UIAccessibility.capture(host,"run-type-selected-"+name)
+            window.makeFirstResponder(search);settle()
+            UIAccessibility.capture(host,"run-type-inactive-"+name)
+        }
+        window.appearance=nil;window.makeFirstResponder(table);settle()
         check(descendants(host).compactMap{$0 as? NSTextField}.contains{$0.placeholderString=="Найти в сообщениях"},"Click opens the conversation controls")
         // A deleted journal makes any accidental background re-search lose these
         // answer-only matches. Existing results must remain until explicit refresh.
